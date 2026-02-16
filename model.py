@@ -140,6 +140,76 @@ class Structure:
             
         return u_vec
     
+    def calculate_strain_energy(self):
+
+        """
+        Berechnet die Verformungsenergie für alle aktiven Federn
+        und verteilt sie 50/50 auf die Massenpunkte.
+        """
+
+        # 1. Energie aller Knoten zurücksetzen
+        for m in self.massepunkte:
+            m.strain_energy = 0.0
+
+        # 2. Über alle Federn iterieren
+        for feder in self.federn:
+            # Ignoriere inaktive Federn
+            if not feder.massepunkt_i.active or not feder.massepunkt_j.active:
+                continue
+
+            # Vektoren und Matrizen holen
+            k_local = feder.get_element_stiffness(self.dim)
+            
+            # Verschiebeungsvektor u für dieses Element bauen
+            u_i = feder.massepunkt_i.displacement[:self.dim]
+            u_j = feder.massepunkt_j.displacement[:self.dim]
+            u_element = np.concatenate([u_i, u_j])
+
+            # Matrix-Multiplikation: 0.5 * u^T * K * u
+            # (u @ K) -> Vektor-Matrix-Multiplikation
+            # dot(u) -> Skalarprodukt am Ende
+            energy = 0.5 * np.dot(u_element @ k_local, u_element)
+
+            # Energie 50/50 aufteilen
+            feder.massepunkt_i.strain_energy += energy * 0.5
+            feder.massepunkt_j.strain_energy += energy * 0.5
+
+    def remove_inefficient_nodes(self, target_mass_percent: float):
+        """
+        Deaktiviert die Knoten mit dem geringsten Kraftfluss, bis die Zielmasse erreicht ist.
+        target_mass_percent: z.B. 0.5 für 50% der Masse übrig lassen.
+        """
+        # Nur momentan aktive Knoten betrachten
+        active_nodes = [m for m in self.massepunkte if m.active]
+        current_count = len(active_nodes)
+        target_count = int(len(self.massepunkte) * target_mass_percent)
+        
+        # Wie viele Massenpunkte müssen weg?
+        to_remove_count = current_count - target_count
+        
+        if to_remove_count <= 0:
+            return # Ziel schon erreicht
+            
+        candidates = []
+        for m in active_nodes:
+            # Knoten mit Kraft oder Randbedingung dürfen nicht gelöscht werden!
+            is_fixed = np.any(m.fixed)
+            has_force = np.linalg.norm(m.force) > 1e-9
+            
+            if not is_fixed and not has_force:
+                candidates.append(m)
+        
+        # Aufsteigend sortieren nach Energie
+        candidates.sort(key=lambda m: m.strain_energy)
+        
+        # Konnten mit geringster Energie zuerst entfernen
+        num_delete = min(to_remove_count, len(candidates))
+        
+        for i in range(num_delete):
+            candidates[i].active = False
+            
+        print(f"Optimierung: {num_delete} Knoten entfernt.")
+    
     def generate_rect_mesh(self, nx: int, nz: int, width: float, height: float):
         """
         Erstellt ein Rechteck-Gitter mit nx * nz Knoten.
