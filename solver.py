@@ -1,8 +1,9 @@
 import numpy as np
 import numpy.typing as npt
 
-from scipy.sparse import csr_matrix, isspmatrix
+from scipy.sparse import csr_matrix, isspmatrix, eye
 from scipy.sparse.linalg import spsolve
+import warnings
 
 
 def solve(
@@ -32,6 +33,9 @@ def solve(
     # Umwandeln in sparse matrix falls nötig
     if not isspmatrix(K):
         K = csr_matrix(K)
+    
+    # Kleine Regularisierung hinzufügen, um Singulärität zu vermeiden
+    K = K + eye(n, format="csr") * 1e-9
 
     fixed = np.array(u_fixed_idx, dtype=int)
     free = np.setdiff1d(np.arange(n), fixed)
@@ -44,7 +48,11 @@ def solve(
     F_f = F[free]
 
     try:
-        u_f = spsolve(K_ff, F_f)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            u_f = spsolve(K_ff, F_f)
+        if np.any(np.isnan(u_f)) or np.any(np.isinf(u_f)):
+            return None
     except Exception:
         return None
 
