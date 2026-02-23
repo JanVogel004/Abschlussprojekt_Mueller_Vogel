@@ -135,9 +135,6 @@ if st.session_state.structure:
     
     with tab1:
         c1, c2 = st.columns(2)
-        def get_node(x, z):
-            target = np.array([x, z])
-            return min(s.massepunkte, key=lambda m: np.linalg.norm(m.coords - target))
         with c1:
             st.markdown("**Lager**")
             lx = st.number_input("Position X", 0.0, w, 0.0, key="lx_in", step=1.0)
