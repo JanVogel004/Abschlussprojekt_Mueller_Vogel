@@ -203,14 +203,28 @@ class Structure:
         # Aufsteigend sortieren nach Energie
         candidates.sort(key=lambda m: m.strain_energy)
         
-        # Konnten mit geringster Energie zuerst entfernen
-        num_delete = min(to_remove_count, len(candidates))
+        removed_count = 0
         
-        for i in range(num_delete):
-            candidates[i].active = False
+        for m in candidates:
+            # Abbrechen, wenn wir genug gelöscht haben
+            if removed_count >= to_remove_count:
+                break 
+                
+            # 1. Testweise deaktivieren
+            m.active = False
             
-        print(f"Optimierung: {num_delete} Knoten entfernt.")
-    
+            # 2. Prüfen: Fällt das Fachwerk auseinander?
+            if self.is_path_intact():
+                # Pfad ist intakt! Löschung ist gültig.
+                removed_count += 1
+            else:
+                # FEHLER! Pfad abgerissen. Sofort wiederherstellen!
+                m.active = True
+                m.strain_energy = 1e10 # Extrem hohe Energie geben, damit er nicht nochmal geprüft wird
+                
+        print(f"Optimierung: {removed_count} Knoten entfernt (Ziel für diesen Schritt war {to_remove_count}).")
+
+
     def generate_rect_mesh(self, nx: int, nz: int, width: float, height: float):
         """
         Erstellt ein Rechteck-Gitter mit nx * nz Knoten.
@@ -297,3 +311,42 @@ class Structure:
             return False, "Mindestens 1 Loslager wird benötigt!"
 
         return True, "Struktur stabil."
+
+
+    def is_path_intact(self):
+        """
+        Prüft mit Graphentheorie (BFS), ob alle Lasten noch mit den Lagern verbunden sind.
+        """
+        import numpy as np
+        
+        active_nodes = [m for m in self.massepunkte if m.active]
+        supports = [m for m in active_nodes if np.any(m.fixed)]
+        forces = [m for m in active_nodes if np.linalg.norm(m.force) > 0]
+
+        if not forces or not supports:
+            return True # Nichts zu prüfen
+
+        # 1. Adjazenzliste aufbauen, Verbindungen der aktiven Knoten durch aktive Federn
+        adj = {id(m): [] for m in active_nodes}
+        for f in self.federn:
+            if f.massepunkt_i.active and f.massepunkt_j.active:
+                adj[id(f.massepunkt_i)].append(id(f.massepunkt_j))
+                adj[id(f.massepunkt_j)].append(id(f.massepunkt_i))
+
+        # 2. Breitensuche von jedem Lager aus, um alle erreichbaren Knoten zu markieren
+        visited = set(id(s) for s in supports)
+        queue = [id(s) for s in supports]
+
+        while queue:
+            curr_id = queue.pop(0)
+            for neighbor_id in adj.get(curr_id, []):
+                if neighbor_id not in visited:
+                    visited.add(neighbor_id)
+                    queue.append(neighbor_id)
+
+        # 3. Ergebnisprüfung: Sind die IDs aller Kraft-Knoten erreicht worden?
+        for f_node in forces:
+            if id(f_node) not in visited:
+                return False # Pfad unterbrochen.
+        
+        return True
