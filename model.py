@@ -1,6 +1,9 @@
 import numpy as np
 from dataclasses import dataclass, field
 from solver import solve as linear_solve 
+from scipy.sparse import csr_matrix
+
+#scipy.sparse spart Speicherplatz und Rechenzeit
 
 @dataclass
 class Massepunkt:
@@ -112,35 +115,72 @@ class Structure:
 
             return K_g, F_g
     
-    def solve(self):
-        """Löst das System K*u=F und speichert Ergebnisse in den Knoten."""
-      
-        # 1. Matrix und Vektor bauen
-        K, F = self.assemble_system()
-        
-        # 2. Fixierte Freiheitsgrade finden (Randbedingungen)
-        fixed_dofs = []
-        for m in self.massepunkte:
-            for d in range(self.dim):
-                if m.fixed[d]:
-                    # Globaler Index = ID * Dimension + Dimension_Index (0=x, 1=y, 2=z)
-                    fixed_dofs.append(m.id * self.dim + d)
-        
-        # 3. Solver aufrufen
-        u_vec = linear_solve(K, F, fixed_dofs)
-        
-        if u_vec is None:   # Fehlerbehandlung für singuläre Systeme (nicht eindeutig lösbar)
-            print("System ist singulär/nicht lösbar!")
-            return None
+    def assemble_stiffness_sparse(self):
+        rows, cols, data = [], [], []
+        n_dof = len(self.massepunkte) * self.dim
+        # Nur aktive Federn berücksichtigen
+        for feder in self.federn:
+            if not feder.massepunkt_i.active or not feder.massepunkt_j.active:
+                continue
+
+            k_local = feder.get_element_stiffness(self.dim)
+
+            i = feder.massepunkt_i.id
+            j = feder.massepunkt_j.id
+            # Alle Indizes der beteiligten Knoten in der globalen Matrix sammeln
+            dofs = (
+                list(range(i*self.dim, i*self.dim+self.dim)) +
+                list(range(j*self.dim, j*self.dim+self.dim))
+            )
             
-        # 4. Ergebnis zurück in die Massepunkte schreiben
+            for a in range(2*self.dim):
+                for b in range(2*self.dim):
+                    val = k_local[a, b]
+                    if abs(val) > 1e-12:
+                        rows.append(dofs[a])
+                        cols.append(dofs[b])
+                        data.append(val)
+        # Sparse-Matrix erstellen
+        self.K_base = csr_matrix((data, (rows, cols)), shape=(n_dof, n_dof))
+
+    def assemble_force_vector(self):
+        # Kraftvektor F aufbauen
+        F = np.zeros(len(self.massepunkte) * self.dim)
         for m in self.massepunkte:
             start = m.id * self.dim
-            end = start + self.dim
-            m.displacement = u_vec[start:end]
-            
-        return u_vec
+            F[start:start+self.dim] = m.force
+        return F
     
+    def get_fixed_dofs(self):
+        # Alle Freiheitsgrade sammeln, die fixiert oder inaktive Knoten sind
+        fixed = []
+        for m in self.massepunkte:
+            for d in range(self.dim):
+                idx = m.id * self.dim + d
+                if m.fixed[d] or not m.active:
+                    fixed.append(idx)
+        return fixed
+        
+    def solve(self):
+    # Steifigkeitsmatrix nur einmal aufbauen
+        if not hasattr(self, "K_base"):
+            self.assemble_stiffness_sparse()
+
+        F = self.assemble_force_vector()
+        fixed_dofs = self.get_fixed_dofs()
+
+        u_vec = linear_solve(self.K_base, F, fixed_dofs)
+
+        if u_vec is None:
+            print("System ist singulär / nicht lösbar")
+            return None
+
+        for m in self.massepunkte:
+            start = m.id * self.dim
+            m.displacement = u_vec[start:start+self.dim]
+
+        return u_vec
+
     def calculate_strain_energy(self):
 
         """
@@ -210,7 +250,11 @@ class Structure:
             candidates[i].active = False
             
         print(f"Optimierung: {num_delete} Knoten entfernt.")
-    
+
+        # Matrix wird neu aufgebaut, wenn das nächste Mal gelöst wird
+        if hasattr(self, "K_base"):
+            del self.K_base
+
     def generate_rect_mesh(self, nx: int, nz: int, width: float, height: float):
         """
         Erstellt ein Rechteck-Gitter mit nx * nz Knoten.
@@ -260,7 +304,11 @@ class Structure:
                 if x_i > 0 and z_i < nz - 1:
                     idx_bl = (z_i + 1) * nx + (x_i - 1)
                     self.add_Feder(idx, idx_bl, k=k_diag)
-                    
+    
+        # Matrix wird neu aufgebaut, wenn das nächste Mal Knoten entfernt oder gelöst wird
+        if hasattr(self, "K_base"):
+            del self.K_base
+            
     def stable_test(self):
 
         #Freiheitsgrade und Lager überprüfen, damit die Optimierung durchgeführt werden kann.
@@ -289,11 +337,9 @@ class Structure:
 
         if fixed_dofs < required_dofs:
             return False, f"Es werden mindestens {required_dofs} fixierte Freiheitsgrade benötigt!"
-
         if festlager < 1:
             return False, "Mindestens 1 Festlager wird benötigt!"
-
         if loslager < 1:
             return False, "Mindestens 1 Loslager wird benötigt!"
-
+        
         return True, "Struktur stabil."
