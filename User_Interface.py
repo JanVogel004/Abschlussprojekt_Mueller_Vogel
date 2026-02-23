@@ -28,73 +28,89 @@ if 'name' not in st.session_state:
 st.set_page_config(page_title="FEM Optimierung", layout="wide")
 st.title("FEM Optimierer")
 
-st.subheader("Gespeicherte Modelle")
-
-models = load_all_models()
-
-if models:
-
-    # Anzeige-Text für jedes Modell erzeugen
-    selected_index = st.selectbox(
-    "Modell auswählen",
-    range(len(models)),
-    format_func=lambda i: f" {models[i]['name']} ({models[i]['date']})"
-    )
-    m = models[selected_index]
-    # Details zum Modell anzeigen
-    st.markdown(
-        f"""
-    **Geometrie:** {m['width']} × {m['height']} m  
-    **Mesh:** {m['nx']} × {m['nz']} Knoten  
-    **Material:** E = {m['e_mod']} N/mm²  
-    **Randbedingungen:** {len(m['constraints'])} Einträge  
-    """
-    )
-
-    col1, col2 = st.columns([1,3])
-
-    with col1:
-        if st.button("Modell laden"):
-
-            params = models[selected_index]
-
-            # Parameter in session_state laden
-            st.session_state.dims = (params["width"], params["height"])
-            st.session_state.e_modul = params["e_mod"]
-            st.session_state.constraints = params["constraints"]
-            st.session_state.use_symmetry = params["symmetry"]
-            st.session_state.res = params["width"] / (params["nx"] - 1)
-            st.session_state.name = params["name"]
-
-            nx = params["nx"]
-            nz = params["nz"]
-            e_mod = params["e_mod"]
-
-            # Struktur neu erzeugen
-
-            s = Structure(dim=2)
-            # Grundstruktur wieder erzeugen
-            s.generate_rect_mesh(params["nx"], params["nz"], params["width"], params["height"])
-
-            for f in s.federn: f.k = params["e_mod"] / st.session_state.res
-
-            for m in s.massepunkte:
-                m.active = True
-                m.displacement[:] = 0.0
-                m.force[:] = 0.0
-                m.fixed[:] = False
-
-            st.session_state.structure = s
-
-            st.success("Modell geladen")
-            st.rerun()
-
-else:
-    st.info("Noch keine gespeicherten Modelle vorhanden.")
-
 
 with st.sidebar:
-    st.header("1. Geometrie")
+    st.header("Gespeicherte Modelle")
+
+    models = load_all_models()
+
+    if models:
+
+        # Anzeige-Text für jedes Modell erzeugen
+        selected_index = st.selectbox(
+        "Modell auswählen",
+        range(len(models)),
+        format_func=lambda i: f" {models[i]['name']} ({models[i]['date']})"
+        )
+        m = models[selected_index]
+        # Details zum Modell anzeigen
+        st.markdown(
+            f"""
+        **Geometrie:** {m['width']} × {m['height']} m  
+        **Mesh:** {m['nx']} × {m['nz']} Knoten  
+        **Material:** E = {m['e_mod']} N/mm²  
+        **Randbedingungen:** {len(m['constraints'])} Einträge  
+        """
+        )
+    else:
+        st.info("Noch keine gespeicherten Modelle vorhanden.")
+
+    if st.button("Modell laden"):
+
+        params = models[selected_index]
+
+        # Parameter in session_state laden
+        st.session_state.dims = (params["width"], params["height"])
+        st.session_state.e_modul = params["e_mod"]
+        st.session_state.constraints = params["constraints"]
+        st.session_state.use_symmetry = params["symmetry"]
+        st.session_state.res = params["width"] / (params["nx"] - 1)
+        st.session_state.name = params["name"]
+
+        nx = params["nx"]
+        nz = params["nz"]
+        e_mod = params["e_mod"]
+
+        # Struktur neu erzeugen
+
+        s = Structure(dim=2)
+        # Grundstruktur wieder erzeugen
+        s.generate_rect_mesh(params["nx"], params["nz"], params["width"], params["height"])
+
+        for f in s.federn: f.k = params["e_mod"] / st.session_state.res
+
+        for m in s.massepunkte:
+            m.active = True
+            m.displacement[:] = 0.0
+            m.force[:] = 0.0
+            m.fixed[:] = False
+
+        st.session_state.structure = s
+
+        st.success("Modell geladen")
+        st.rerun()
+
+    
+
+
+if st.session_state.structure:
+    s, (w, h), e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
+    apply_constraints(s)
+
+    st.subheader("Ausgangslage")
+    # Plot der Ausgangslage mit Randbedingungen, Kräften und eventuell Symmetrielinie
+    st.pyplot(plot_with_stresses(s, "Vorschau", e_mod, w, h, vis_factor=0, is_setup_view=True, draw_sym_line=st.session_state.use_symmetry))
+
+else:
+    st.info("Willkommen! Bitte erzeuge im Tab 'Geometrie' zuerst ein Gitter.")
+
+st.divider()
+
+#tabs für Randbedingungen und Optimierung
+tab1, tab2, tab3 = st.tabs(["Geometrie", "Randbedingungen", "Optimierung"])
+
+
+with tab1:
     # Startwerte für Breite, Höhe, Auflösung und Material
     width = st.number_input("Gesamtbreite (m)", value=40.0, step=1.0)
     height = st.number_input("Gesamthöhe (m)", value=15.0, step=1.0)
@@ -103,7 +119,7 @@ with st.sidebar:
     mat_type = st.selectbox("Material", ["Baustahl S235", "Aluminium", "Holz", "Custom"])
     e_mod_map = {"Baustahl S235": 210000.0, "Aluminium": 70000.0, "Holz": 10000.0, "Custom": 1000.0}
     e_modul = st.number_input("E-Modul (N/mm²)", value=e_mod_map[mat_type])
-    
+
     if st.button("Gitter neu erzeugen", type="primary"):
         nx = int(width / res); nx = nx + 1 if nx % 2 == 0 else nx   # Kontenanzahl, immer ungerade für Symmetrie
         nz = int(height / res); nz = nz + 1 if nz % 2 == 0 else nz
@@ -120,43 +136,37 @@ with st.sidebar:
         st.session_state.name = None
         st.rerun()
 
-
-if st.session_state.structure:
-    s, (w, h), e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
-    apply_constraints(s)
-
-    st.subheader("Ausgangslage")
-    
-    # Plot der Ausgangslage mit Randbedingungen, Kräften und eventuell Symmetrielinie
-    st.pyplot(plot_with_stresses(s, "Vorschau", e_mod, w, h, vis_factor=0, is_setup_view=True, draw_sym_line=st.session_state.use_symmetry))
-
-    #tabs für Randbedingungen und Optimierung
-    tab1, tab2 = st.tabs(["Randbedingungen", "Optimierung"])
-    
-    with tab1:
+with tab2:
+    if not st.session_state.structure:
+        st.warning("Bitte erstelle zuerst ein Gitter im Tab 'Geometrie'!")
+    else:
+        s, (w, h), e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
+        
         c1, c2 = st.columns(2)
-        def get_node(x, z):
-            target = np.array([x, z])
-            return min(s.massepunkte, key=lambda m: np.linalg.norm(m.coords - target))
+        
         with c1:
             st.markdown("**Lager**")
-            lx = st.number_input("Position X", 0.0, w, 0.0, key="lx_in", step=1.0)
-            lz = st.number_input("Position Z", 0.0, h, h, key="lz_in", step=1.0)
-            ltype = st.radio("Typ", ["Festlager (∆)", "Loslager (○)"], key="ltype_in")
-            if st.button("Lager anwenden"):
-                clean_type = "Festlager" if "Fest" in ltype else "Loslager"
-                st.session_state.constraints.append({"type": clean_type, "x": lx, "z": lz})
-                st.rerun()
+            with st.form("lager_form"):
+                lx = st.number_input("Position X", 0.0, w, 0.0, key="lx_in", step=1.0)
+                lz = st.number_input("Position Z", 0.0, h, h, key="lz_in", step=1.0)
+                ltype = st.radio("Typ", ["Festlager (∆)", "Loslager (○)"], key="ltype_in")
+                
+                if st.form_submit_button("Lager anwenden"):
+                    clean_type = "Festlager" if "Fest" in ltype else "Loslager"
+                    st.session_state.constraints.append({"type": clean_type, "x": lx, "z": lz})
+                    st.rerun()
         with c2:
             # Kraft mit Richtung und Betrag ändern // steps in 1.0 schritten
             st.markdown("**Kraft**")
-            kx = st.number_input("Position X", 0.0, w, w/2, key="kx_in", step=1.0)
-            kz = st.number_input("Position Z", 0.0, h, 0.0, key="kz_in", step=1.0)
-            fv = st.number_input("Betrag (N)", value=5000.0, key="fv_in", step=500.0)
-            fw = st.number_input("Winkel (°)", 0.0, 360.0, 270.0, step=45.0, key="fw_in")
-            if st.button("Kraft anwenden"): 
-                st.session_state.constraints.append({"type": "Kraft", "x": kx, "z": kz, "val": fv, "angle": fw}) 
-                st.rerun()
+            with st.form("kraft_form"):
+                kx = st.number_input("Position X", 0.0, w, w/2, key="kx_in", step=1.0)
+                kz = st.number_input("Position Z", 0.0, h, 0.0, key="kz_in", step=1.0)
+                fv = st.number_input("Betrag (N)", value=5000.0, key="fv_in", step=500.0)
+                fw = st.number_input("Winkel (°)", 0.0, 360.0, 270.0, step=45.0, key="fw_in")
+                
+                if st.form_submit_button("Kraft anwenden"): 
+                    st.session_state.constraints.append({"type": "Kraft", "x": kx, "z": kz, "val": fv, "angle": fw}) 
+                    st.rerun()
 
         st.divider()
         # Liste der Randbedingungen
@@ -196,7 +206,12 @@ if st.session_state.structure:
         with col2:
             st.text("Nun weiter zur Optimierung!")
 
-    with tab2:
+with tab3:
+    if not st.session_state.structure:
+        st.warning("Bitte erstelle zuerst ein Gitter im Tab 'Geometrie'!")
+    else:
+        s, (w, h), e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
+        
         # Checkbox Symetrie-Modus
         st.session_state.use_symmetry = st.checkbox("Symmetrie-Modus nutzen (Spiegelt Materialabtrag)", value=st.session_state.use_symmetry)
 
