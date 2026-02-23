@@ -133,7 +133,7 @@ with tab1:
         # Startwerte für Breite, Höhe, Auflösung und Material
         width = st.number_input("Gesamtbreite (m)", value=40.0, step=1.0)
         height = st.number_input("Gesamthöhe (m)", value=15.0, step=1.0)
-        res = st.slider("Auflösung (m)", 0.5, 5.0, 1.5)
+        res = st.slider("Auflösung (m)", 0.01, 3.0, 1.5)
         st.divider()
         mat_type = st.selectbox("Material", ["Baustahl S235", "Aluminium", "Holz", "Custom"])
         e_mod_map = {"Baustahl S235": 210000.0, "Aluminium": 70000.0, "Holz": 10000.0, "Custom": 1000.0}
