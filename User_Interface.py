@@ -42,7 +42,7 @@ hide_streamlit_instructions = """
 </style>
 """
 st.markdown(hide_streamlit_instructions, unsafe_allow_html=True)
-# ---------------------------------------------------
+#--------------------------------------------------------------
 
 
 with st.sidebar:
@@ -245,7 +245,7 @@ with tab3:
 
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
-                save_clicked = st.form_submit_button("Parameter speichern")
+                save_clicked = st.form_submit_button("Modell speichern")
             with col_btn2:
                 start_clicked = st.form_submit_button("Optimierung starten", type="primary")
 
@@ -256,11 +256,15 @@ with tab3:
             st.session_state.step_size = step
 
             if save_clicked:
-                if not st.session_state.name:
+                clean_name = st.session_state.name.strip()
+                
+                if not clean_name:
                     st.error("Bitte gib einen Namen ein, um zu speichern!")
+                elif clean_name in get_model_names():
+                    st.error(f"Der Name '{clean_name}' existiert bereits! Bitte wähle einen anderen.")
                 else:
-                    save_current_model(target, step, st.session_state.name)
-                    st.success(f"Modell '{st.session_state.name}' wurde gespeichert.")
+                    save_current_model(target, step, clean_name)
+                    st.success(f"Modell '{clean_name}' wurde gespeichert.")
                     st.rerun()    
             
             if start_clicked:    
