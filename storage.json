@@ -1,5 +1,37 @@
 [
   {
+    "name": "Dicke Gr\u00f6\u00dfe",
+    "date": "2026-02-23 10:41",
+    "width": 60.0,
+    "height": 20.0,
+    "nx": 120,
+    "nz": 40,
+    "res": 0.5,
+    "e_mod": 210000.0,
+    "constraints": [
+      {
+        "type": "Kraft",
+        "x": 30.0,
+        "z": 0.0,
+        "val": 5000.0,
+        "angle": 270.0
+      },
+      {
+        "type": "Loslager",
+        "x": 60.0,
+        "z": 20.0
+      },
+      {
+        "type": "Festlager",
+        "x": 0.0,
+        "z": 20.0
+      }
+    ],
+    "symmetry": true,
+    "target_mass": 0.38,
+    "step": 0.06
+  },
+  {
     "name": "Aluminium Tr\u00e4ger",
     "date": "2026-02-22 18:21",
     "width": 25.0,
