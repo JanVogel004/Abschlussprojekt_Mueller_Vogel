@@ -21,6 +21,10 @@ if 'res' not in st.session_state:
     st.session_state.res = None
 if 'name' not in st.session_state:
     st.session_state.name = None
+if 'target_mass' not in st.session_state:
+    st.session_state.target_mass = 0.60
+if 'step_size' not in st.session_state:
+    st.session_state.step_size = 0.04
 
 
 # User Interface--------------------------------------------------------------------
@@ -78,6 +82,8 @@ with st.sidebar:
         st.session_state.use_symmetry = params["symmetry"]
         st.session_state.res = params["width"] / (params["nx"] - 1)
         st.session_state.name = params["name"]
+        st.session_state.target_mass = params.get("target_mass", 0.60)
+        st.session_state.step_size = params.get("step", 0.04)
 
         nx = params["nx"]
         nz = params["nz"]
@@ -229,8 +235,9 @@ with tab3:
             # Checkbox Symetrie-Modus
             st.session_state.use_symmetry = st.checkbox("Symmetrie-Modus nutzen (Spiegelt Materialabtrag)", value=st.session_state.use_symmetry)
 
-            target = st.slider("Ziel-Masse (%)", 5, 100, 60) / 100.0
-            step = st.slider("Schrittweite", 0.01, 0.1, 0.02)
+            default_target = int(st.session_state.target_mass * 100)
+            target = st.slider("Ziel-Masse (%)", 5, 100, default_target) / 100.0
+            step = st.slider("Schrittweite", 0.01, 0.1, st.session_state.step_size)
             vis = st.slider("Verformungs-Faktor", 1.0, 10.0, 1.0)
             
             # Namensfeld
@@ -245,6 +252,8 @@ with tab3:
         if save_clicked or start_clicked:
             # Daten im Session State aktualisieren
             st.session_state.name = name_input.strip()
+            st.session_state.target_mass = target
+            st.session_state.step_size = step
 
             if save_clicked:
                 if not st.session_state.name:
