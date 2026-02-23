@@ -1,101 +1,102 @@
 import numpy as np
 import numpy.typing as npt
 
-def solve(K: npt.NDArray[np.float64], F: npt.NDArray[np.float64], u_fixed_idx: list[int], eps=1e-9) -> npt.NDArray[np.float64] | None:
-    """Solve the linear system Ku = F with fixed boundary conditions.
+from scipy.sparse import csr_matrix, isspmatrix
+from scipy.sparse.linalg import spsolve
 
-    Parameters
+
+def solve(
+    K: csr_matrix | npt.NDArray[np.float64],
+    F: npt.NDArray[np.float64],
+    u_fixed_idx: list[int],
+) -> npt.NDArray[np.float64] | None:
+    """
+    Lösen des linearen Systems KU = F 
+    Parameter
     ----------
-    K : npt.NDArray[np.float64]
-        Stiffness matrix.
-    F : npt.NDArray[np.float64]
-        Force vector.
-    u_fixed_idx : list[int]
-        List of indices where the displacement is fixed (Dirichlet boundary conditions).
-    eps : float, optional
-        Regularization parameter to avoid singular matrix, by default 1e-9
+    K : csr_matrix 
+        Global stiffness matrix 
+    F : ndarray
+        Global force vector.
+    u_fixed_idx : list
 
-    Returns
+    gibt U zurück oder None wenn das System singulär ist.
     -------
-    npt.NDArray[np.float64] | None
-        Displacement vector or None if the system is unsolvable.
+    u : ndarray or None
+       Verchiebungsvektor oder None wenn das System singulär ist.
     """
 
-    assert K.shape[0] == K.shape[1], "Stiffness matrix K must be square."
-    assert K.shape[0] == F.shape[0], "Force vector F must have the same size as K."
+    n = F.shape[0]
+    assert K.shape[0] == K.shape[1] == n
 
-    for d in u_fixed_idx:
-        K[d, :] = 0.0
-        K[:, d] = 0.0
-        K[d, d] = 1.0
+    # Umwandeln in sparse matrix falls nötig
+    if not isspmatrix(K):
+        K = csr_matrix(K)
+
+    fixed = np.array(u_fixed_idx, dtype=int)
+    free = np.setdiff1d(np.arange(n), fixed)
+
+    if free.size == 0:
+        return np.zeros(n)
+
+    # System für freie Freiheitsgrade lösen
+    K_ff = K[free, :].tocsc()[:, free].tocsr()
+    F_f = F[free]
 
     try:
-        u = np.linalg.solve(K, F) # solve the linear system Ku = F
-        u[u_fixed_idx] = 0.0
+        u_f = spsolve(K_ff, F_f)
+    except Exception:
+        return None
 
-        return u
-    
-    except np.linalg.LinAlgError:
-        # If the stiffness matrix is singular we can try a small regularization to still get a solution
-        K += np.eye(K.shape[0]) * eps
+    # Vollständigen Verschiebungsvektor erstellen
+    u = np.zeros(n)
+    u[free] = u_f
+    u[fixed] = 0.0
 
-        try:
-            u = np.linalg.solve(K, F) # solve the linear system Ku = F
-            u[u_fixed_idx] = 0.0
+    return u
 
-            return u
-        
-        except np.linalg.LinAlgError:
-            # If it is still singular we give up
-            return None
+
 
 def test_case_horizontal():
-    # Horizontal spring element between two nodes i and j
+    # Horizontal Element in x-Richtung
     e_n = np.array([1.0, 0.0])
-    e_n = e_n / np.linalg.norm(e_n)
+    e_n /= np.linalg.norm(e_n)
 
     k = 1.0
-    K = k * np.array([[1.0, -1.0], [-1.0, 1.0]])
-    print(f"{K=}")
+    K_local = k * np.array([[1.0, -1.0], [-1.0, 1.0]])
 
     O = np.outer(e_n, e_n)
-    print(f"{O=}")
+    K_global = np.kron(K_local, O)
 
-    Ko = np.kron(K, O)
-    print(f"{Ko=}")
+    K_global = csr_matrix(K_global)
 
-    u_fixed_idx = [0, 1] # fix node i in both directions
+    u_fixed_idx = [0, 1]  # node i fixiert
+    F = np.array([0.0, 0.0, 10.0, 0.0])
 
-    F = np.array([0.0, 0.0, 10.0, 0.0]) # apply force at node j in x-direction
+    u = solve(K_global, F, u_fixed_idx)
+    print("Horizontal test:", u)
 
-    u = solve(Ko, F, u_fixed_idx)
-    print(f"{u=}")
 
 def test_case_diagonal():
-    # Diagonal spring element at 45° between two nodes i and j
+    # Diagonales element in 45° Richtung
     e_n = np.array([1.0, 1.0])
-    e_n = e_n / np.linalg.norm(e_n)
+    e_n /= np.linalg.norm(e_n)
 
-    k = 1.0 / np.sqrt(2.0) # diagonal spring has less stiffness
-    K = k * np.array([[1.0, -1.0], [-1.0, 1.0]])
-    print(f"{K=}")
+    k = 1.0 / np.sqrt(2.0)
+    K_local = k * np.array([[1.0, -1.0], [-1.0, 1.0]])
 
     O = np.outer(e_n, e_n)
-    print(f"{O=}")
+    K_global = np.kron(K_local, O)
 
-    Ko = np.kron(K, O)
-    print(f"{Ko=}")
+    K_global = csr_matrix(K_global)
 
-    u_fixed_idx = [0, 1] # fix node i in both directions
+    u_fixed_idx = [0, 1]
+    F = np.array([0.0, 0.0, 1.0, 1.0])
 
-    F = np.array([0.0, 0.0, 1.0, 1.0]) # apply force at node j in diagonal direction
+    u = solve(K_global, F, u_fixed_idx)
+    print("Diagonal test:", u)
 
-    u = solve(Ko, F, u_fixed_idx)
-    print(f"{u=}")
 
 if __name__ == "__main__":
-
     test_case_horizontal()
-
     test_case_diagonal()
-
