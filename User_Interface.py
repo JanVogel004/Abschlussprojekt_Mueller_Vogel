@@ -28,6 +28,18 @@ if 'name' not in st.session_state:
 st.set_page_config(page_title="FEM Optimierung", layout="wide")
 st.title("FEM Optimierer")
 
+# --- CSS HACK: "Press Enter to apply" verstecken ---
+hide_streamlit_instructions = """
+<style>
+    /* Versteckt die kleinen Hilfetexte unter den Eingabefeldern */
+    div[data-testid="InputInstructions"] {
+        display: none !important;
+    }
+</style>
+"""
+st.markdown(hide_streamlit_instructions, unsafe_allow_html=True)
+# ---------------------------------------------------
+
 
 with st.sidebar:
     st.header("Gespeicherte Modelle")
@@ -111,30 +123,31 @@ tab1, tab2, tab3 = st.tabs(["Geometrie", "Randbedingungen", "Optimierung"])
 
 
 with tab1:
-    # Startwerte für Breite, Höhe, Auflösung und Material
-    width = st.number_input("Gesamtbreite (m)", value=40.0, step=1.0)
-    height = st.number_input("Gesamthöhe (m)", value=15.0, step=1.0)
-    res = st.slider("Auflösung (m)", 0.5, 5.0, 1.5)
-    st.divider()
-    mat_type = st.selectbox("Material", ["Baustahl S235", "Aluminium", "Holz", "Custom"])
-    e_mod_map = {"Baustahl S235": 210000.0, "Aluminium": 70000.0, "Holz": 10000.0, "Custom": 1000.0}
-    e_modul = st.number_input("E-Modul (N/mm²)", value=e_mod_map[mat_type])
+    with st.form("geometrie_form"):
+        # Startwerte für Breite, Höhe, Auflösung und Material
+        width = st.number_input("Gesamtbreite (m)", value=40.0, step=1.0)
+        height = st.number_input("Gesamthöhe (m)", value=15.0, step=1.0)
+        res = st.slider("Auflösung (m)", 0.5, 5.0, 1.5)
+        st.divider()
+        mat_type = st.selectbox("Material", ["Baustahl S235", "Aluminium", "Holz", "Custom"])
+        e_mod_map = {"Baustahl S235": 210000.0, "Aluminium": 70000.0, "Holz": 10000.0, "Custom": 1000.0}
+        e_modul = st.number_input("E-Modul (N/mm²)", value=e_mod_map[mat_type])
 
-    if st.button("Gitter neu erzeugen", type="primary"):
-        nx = int(width / res); nx = nx + 1 if nx % 2 == 0 else nx   # Kontenanzahl, immer ungerade für Symmetrie
-        nz = int(height / res); nz = nz + 1 if nz % 2 == 0 else nz
-        s = Structure(dim=2)
-        s.generate_rect_mesh(nx, nz, width, height)   # Gitter erzeugen basierend auf Breite, Höhe und Auflösung
-        for f in s.federn: f.k = e_modul / res
-        st.session_state.structure = s
-        st.session_state.dims = (width, height)
-        st.session_state.e_modul = e_modul # Model speichern
-        st.session_state.last_result_fig = None
-        st.session_state.res = res
-        st.session_state.constraints = [] # Alle Randbedingungen zurücksetzen
-        st.session_state.use_symmetry = False
-        st.session_state.name = None
-        st.rerun()
+        if st.form_submit_button("Gitter neu erzeugen", type="primary"):
+            nx = int(width / res); nx = nx + 1 if nx % 2 == 0 else nx   # Kontenanzahl, immer ungerade für Symmetrie
+            nz = int(height / res); nz = nz + 1 if nz % 2 == 0 else nz
+            s = Structure(dim=2)
+            s.generate_rect_mesh(nx, nz, width, height)   # Gitter erzeugen basierend auf Breite, Höhe und Auflösung
+            for f in s.federn: f.k = e_modul / res
+            st.session_state.structure = s
+            st.session_state.dims = (width, height)
+            st.session_state.e_modul = e_modul # Model speichern
+            st.session_state.last_result_fig = None
+            st.session_state.res = res
+            st.session_state.constraints = [] # Alle Randbedingungen zurücksetzen
+            st.session_state.use_symmetry = False
+            st.session_state.name = None
+            st.rerun()
 
 with tab2:
     if not st.session_state.structure:
@@ -212,93 +225,113 @@ with tab3:
     else:
         s, (w, h), e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
         
-        # Checkbox Symetrie-Modus
-        st.session_state.use_symmetry = st.checkbox("Symmetrie-Modus nutzen (Spiegelt Materialabtrag)", value=st.session_state.use_symmetry)
+        with st.form("optimierung_form"):
+            # Checkbox Symetrie-Modus
+            st.session_state.use_symmetry = st.checkbox("Symmetrie-Modus nutzen (Spiegelt Materialabtrag)", value=st.session_state.use_symmetry)
 
-        target = st.slider("Ziel-Masse (%)", 5, 100, 70) / 100.0
-        step = st.slider("Schrittweite", 0.01, 0.1, 0.02)
-        vis = st.slider("Verformungs-Faktor", 1.0, 10.0, 1.0)
-        
-        st.session_state.name = st.text_input("Name des Modells", placeholder="z.B. Holzbalken mit mittiger Last", value = st.session_state.name if st.session_state.name else "")
-
-        if st.button("Optimierung starten", type="primary", disabled=not st.session_state.name.strip()):
-            apply_constraints(s)
+            target = st.slider("Ziel-Masse (%)", 5, 100, 60) / 100.0
+            step = st.slider("Schrittweite", 0.01, 0.1, 0.02)
+            vis = st.slider("Verformungs-Faktor", 1.0, 10.0, 1.0)
             
-            # Testen ob Struktur stabil ist, bevor optimiert wird
-            stable, message = s.stable_test()
-            if not stable:
-                st.error(f"Die Struktur ist instabil: {message} :(")
-                st.stop()
-            st.success("Die Struktur ist stabil! Starte Optimierung...")
+            # Namensfeld
+            name_input = st.text_input("Name des Modells", value=st.session_state.name if st.session_state.name else "")
 
-            # Parameter speichern für später, wenn es ein Neues Modell ist
-            if (st.session_state.name.strip() not in get_model_names()):
-                save_current_model(target, step, st.session_state.name.strip())
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                save_clicked = st.form_submit_button("Parameter speichern")
+            with col_btn2:
+                start_clicked = st.form_submit_button("Optimierung starten", type="primary")
 
-            # Volle Struktur nutzen
-            c_struct = s 
-            for m in c_struct.massepunkte: m.active, m.displacement[:] = True, 0
+        if save_clicked or start_clicked:
+            # Daten im Session State aktualisieren
+            st.session_state.name = name_input.strip()
+
+            if save_clicked:
+                if not st.session_state.name:
+                    st.error("Bitte gib einen Namen ein, um zu speichern!")
+                else:
+                    save_current_model(target, step, st.session_state.name)
+                    st.success(f"Modell '{st.session_state.name}' wurde gespeichert.")
+                    st.rerun()    
             
-            # Symmetrie-Partner vorberechnen
-            partner_map = {} 
-            if st.session_state.use_symmetry:
-                nodes = c_struct.massepunkte
-                for i, n in enumerate(nodes):
-                    if n.coords[0] < w/2 - 0.01: # Links
-                        target_x = w - n.coords[0]
-                        target_z = n.coords[1]
-                        dists = np.linalg.norm([p.coords - np.array([target_x, target_z]) for p in nodes], axis=1)
-                        best_match_idx = np.argmin(dists)
-                        if dists[best_match_idx] < 0.1: 
-                            partner_map[i] = best_match_idx
-
-            plot_spot = st.empty()
-            curr_m = 1.0
-            
-            while curr_m > target:  # Rechne bis Zielmasse erreicht ist
-                if c_struct.solve() is None: break  # Verschiebung berechnen
-                c_struct.calculate_strain_energy()  # Energie berechnen
+            if start_clicked:    
+                apply_constraints(s)
                 
-                # 1. Energie mitteln (links und rechts) für Symetrie
+                # Testen ob Struktur stabil ist, bevor optimiert wird
+                stable, message = s.stable_test()
+                if not stable:
+                    st.error(f"Die Struktur ist instabil: {message} :(")
+                    st.stop()
+                st.success("Die Struktur ist stabil! Starte Optimierung...")
+
+                # Parameter speichern für später, wenn es ein Neues Modell ist
+                if (st.session_state.name.strip() not in get_model_names()):
+                    save_current_model(target, step, st.session_state.name.strip())
+
+                # Volle Struktur nutzen
+                c_struct = s 
+                for m in c_struct.massepunkte: m.active, m.displacement[:] = True, 0
+                
+                # Symmetrie-Partner vorberechnen
+                partner_map = {} 
                 if st.session_state.use_symmetry:
-                    for idx_left, idx_right in partner_map.items():
-                        avg_energy = (c_struct.massepunkte[idx_left].strain_energy + c_struct.massepunkte[idx_right].strain_energy) / 2
-                        c_struct.massepunkte[idx_left].strain_energy = avg_energy
-                        c_struct.massepunkte[idx_right].strain_energy = avg_energy
+                    nodes = c_struct.massepunkte
+                    for i, n in enumerate(nodes):
+                        if n.coords[0] < w/2 - 0.01: # Links
+                            target_x = w - n.coords[0]
+                            target_z = n.coords[1]
+                            dists = np.linalg.norm([p.coords - np.array([target_x, target_z]) for p in nodes], axis=1)
+                            best_match_idx = np.argmin(dists)
+                            if dists[best_match_idx] < 0.1: 
+                                partner_map[i] = best_match_idx
+
+                plot_spot = st.empty()
+                curr_m = 1.0
                 
-                # 2. Schutz für Massepunkte mit Kraft oder Randbedingung: Sehr hohe Energie zuweisen, damit sie nicht gelöscht werden
-                for m in c_struct.massepunkte:
-                    if np.linalg.norm(m.force) > 0 or np.any(m.fixed):
-                        m.strain_energy = 1e15
-                
-                # 3. Löschen von Massepunkten mit geringster Energie je nach Schrittweite 1 bis 10% der Massepunkte
-                c_struct.remove_inefficient_nodes(max(target, curr_m - step))
+                while curr_m > target:  # Rechne bis Zielmasse erreicht ist
+                    if c_struct.solve() is None: break  # Verschiebung berechnen
+                    c_struct.calculate_strain_energy()  # Energie berechnen
+                    
+                    # 1. Energie mitteln (links und rechts) für Symetrie
+                    if st.session_state.use_symmetry:
+                        for idx_left, idx_right in partner_map.items():
+                            avg_energy = (c_struct.massepunkte[idx_left].strain_energy + c_struct.massepunkte[idx_right].strain_energy) / 2
+                            c_struct.massepunkte[idx_left].strain_energy = avg_energy
+                            c_struct.massepunkte[idx_right].strain_energy = avg_energy
+                    
+                    # 2. Schutz für Massepunkte mit Kraft oder Randbedingung: Sehr hohe Energie zuweisen, damit sie nicht gelöscht werden
+                    for m in c_struct.massepunkte:
+                        if np.linalg.norm(m.force) > 0 or np.any(m.fixed):
+                            m.strain_energy = 1e15
+                    
+                    # 3. Löschen von Massepunkten mit geringster Energie je nach Schrittweite 1 bis 10% der Massepunkte
+                    c_struct.remove_inefficient_nodes(max(target, curr_m - step))
 
-                # 4. Konstrolle der Symetrie
-                if st.session_state.use_symmetry:
-                    for idx_left, idx_right in partner_map.items():
-                        # Wenn einer der beiden inaktiv ist, muss der andere es auch sein
-                        if not c_struct.massepunkte[idx_left].active or not c_struct.massepunkte[idx_right].active:
-                            c_struct.massepunkte[idx_left].active = False
-                            c_struct.massepunkte[idx_right].active = False
+                    # 4. Konstrolle der Symetrie
+                    if st.session_state.use_symmetry:
+                        for idx_left, idx_right in partner_map.items():
+                            # Wenn einer der beiden inaktiv ist, muss der andere es auch sein
+                            if not c_struct.massepunkte[idx_left].active or not c_struct.massepunkte[idx_right].active:
+                                c_struct.massepunkte[idx_left].active = False
+                                c_struct.massepunkte[idx_right].active = False
 
-                # 5. Plotten der aktuellen Struktur mit Spannungen
-                curr_m = len([m for m in c_struct.massepunkte if m.active]) / len(c_struct.massepunkte)
-                fig = plot_with_stresses(c_struct, "Optimierung", e_mod, w, h, vis, 
-                                    draw_sym_line=st.session_state.use_symmetry, 
-                                    current_mass_pct=curr_m*100)
-                plot_spot.pyplot(fig); plt.close(fig)
+                    # 5. Plotten der aktuellen Struktur mit Spannungen
+                    curr_m = len([m for m in c_struct.massepunkte if m.active]) / len(c_struct.massepunkte)
+                    fig = plot_with_stresses(c_struct, "Optimierung", e_mod, w, h, vis, 
+                                        draw_sym_line=st.session_state.use_symmetry, 
+                                        current_mass_pct=curr_m*100)
+                    plot_spot.pyplot(fig); plt.close(fig)
 
-            st.session_state.last_result_fig = fig
+                st.session_state.last_result_fig = fig
 
-            # Ergebnis kann als PNG heruntergeladen werden
-            if st.session_state.last_result_fig:
+                # Ergebnis kann als PNG heruntergeladen werden
+                if st.session_state.last_result_fig:
 
-                png_bytes = fig_to_png_bytes(st.session_state.last_result_fig)
+                    png_bytes = fig_to_png_bytes(st.session_state.last_result_fig)
 
-                st.download_button(
-                    label="Geometrie als PNG herunterladen",
-                    data=png_bytes,
-                    file_name="optimierte_geometrie.png",
-                    mime="image/png"
-                )
+                    st.download_button(
+                        label="Geometrie als PNG herunterladen",
+                        data=png_bytes,
+                        file_name="optimierte_geometrie.png",
+                        mime="image/png"
+                    )

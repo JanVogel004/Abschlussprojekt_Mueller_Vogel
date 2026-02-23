@@ -1,5 +1,69 @@
 [
   {
+    "name": "EasyPeasy",
+    "date": "2026-02-23 12:41",
+    "width": 40.0,
+    "height": 15.0,
+    "nx": 80,
+    "nz": 30,
+    "res": 0.5,
+    "e_mod": 210000.0,
+    "constraints": [
+      {
+        "type": "Loslager",
+        "x": 40.0,
+        "z": 15.0
+      },
+      {
+        "type": "Kraft",
+        "x": 20.0,
+        "z": 0.0,
+        "val": 5000.0,
+        "angle": 270.0
+      },
+      {
+        "type": "Festlager",
+        "x": 0.0,
+        "z": 15.0
+      }
+    ],
+    "symmetry": false,
+    "target_mass": 0.6,
+    "step": 0.05
+  },
+  {
+    "name": "2345",
+    "date": "2026-02-23 12:16",
+    "width": 40.0,
+    "height": 15.0,
+    "nx": 26,
+    "nz": 10,
+    "res": 1.5,
+    "e_mod": 210000.0,
+    "constraints": [
+      {
+        "type": "Festlager",
+        "x": 40.0,
+        "z": 15.0
+      },
+      {
+        "type": "Kraft",
+        "x": 20.0,
+        "z": 0.0,
+        "val": 5000.0,
+        "angle": 270.0
+      },
+      {
+        "type": "Loslager",
+        "x": 0.0,
+        "z": 15.0
+      }
+    ],
+    "symmetry": true,
+    "target_mass": 0.6,
+    "step": 0.07
+  },
+  {
     "name": "12345",
     "date": "2026-02-23 11:36",
     "width": 40.0,
@@ -93,38 +157,6 @@
     ],
     "symmetry": false,
     "target_mass": 0.66,
-    "step": 0.02
-  },
-  {
-    "name": "Holzbalken",
-    "date": "2026-02-22 18:19",
-    "width": 30.0,
-    "height": 10.0,
-    "nx": 20,
-    "nz": 6,
-    "res": 1.5,
-    "e_mod": 10000.0,
-    "constraints": [
-      {
-        "type": "Loslager",
-        "x": 0.0,
-        "z": 10.0
-      },
-      {
-        "type": "Festlager",
-        "x": 30.0,
-        "z": 10.0
-      },
-      {
-        "type": "Kraft",
-        "x": 15.0,
-        "z": 0.0,
-        "val": 2500.0,
-        "angle": 270.0
-      }
-    ],
-    "symmetry": false,
-    "target_mass": 0.7,
     "step": 0.02
   }
 ]
