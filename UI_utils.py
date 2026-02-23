@@ -132,6 +132,6 @@ def apply_constraints(struct):
             w_grad = c.get('angle', 270.0)
             w_rad = np.radians(w_grad)
             F = c['val']
-            
-            node.force[0] = F * np.cos(w_rad) 
-            node.force[1] = -1.0 * F * np.sin(w_rad)
+            #mehrere Kräfte gleichzeitig möglich
+            node.force[0] += F * np.cos(w_rad) 
+            node.force[1] += -1.0 * F * np.sin(w_rad)
