@@ -25,6 +25,8 @@ if 'target_mass' not in st.session_state:
     st.session_state.target_mass = 0.60
 if 'step_size' not in st.session_state:
     st.session_state.step_size = 0.04
+if 'optimized_struct' not in st.session_state:
+    st.session_state.optimized_struct = None
 
 
 # User Interface--------------------------------------------------------------------
@@ -291,6 +293,15 @@ with tab2:
                             {"type": "Loslager", "x": w, "y": d, "z": h},
                             {"type": "Kraft", "x": w/2, "y": d/2, "z": 0.0, "val": 8000.0, "angle": 270.0}
                         ]
+                    elif vorlage == "Zentraler Druckstab (Turm)":
+                        st.session_state.constraints = [
+                            {"type": "Festlager", "x": 0.0, "y": 0.0, "z": h},
+                            {"type": "Festlager", "x": w, "y": 0.0, "z": h},
+                            {"type": "Festlager", "x": 0.0, "y": d, "z": h},
+                            {"type": "Festlager", "x": w, "y": d, "z": h},
+                            {"type": "Kraft", "x": w/2, "y": d/2, "z": 0.0, "val": 10000.0, "angle": 270.0}
+                        ]
+                        
                 
                 
                 st.rerun()
@@ -453,11 +464,15 @@ with tab3:
                         st.session_state.last_result_fig = fig
 
                 st.session_state.last_result_fig = fig
+                st.session_state.optimized_struct = c_struct
 
-    # Ergebnis kann als PNG heruntergeladen werden
-    if st.session_state.last_result_fig:
+    # Ergebnis kann als PNG oder STL exportiert werden
+    # Auch struct in einer session_state speichern, damit nach neuladen noch alles da ist
+    if st.session_state.last_result_fig and st.session_state.optimized_struct:
+        c_struct = st.session_state.optimized_struct
         if s.dim == 3:
             # Manueller Export für Plotly
+            b_size = st.session_state.res * 0.7
             btn_data = plotly_to_png_bytes(st.session_state.last_result_fig)
 
                 # Download-Button für 3D-Plot
@@ -468,7 +483,19 @@ with tab3:
                 mime="image/png"
                 )
             
+            # STL Export des optimierten 3D Modells
+            stl_data = create_stl_from_true_3d_structure(c_struct, thickness=b_size)
+            st.download_button(
+                label="3D-Modell exportieren (.stl)",
+                data=stl_data,
+                file_name=f"{st.session_state.name.replace(' ', '_')}_3D.stl",
+                mime="model/stl",
+                type="primary"
+            )
+
+            
         else:
+            # 2D Plot als PNG exportieren
             btn_data = fig_to_png_bytes(st.session_state.last_result_fig)
 
             png_bytes = fig_to_png_bytes(st.session_state.last_result_fig)
@@ -479,14 +506,14 @@ with tab3:
                 file_name="optimierte_geometrie.png",
                 mime="image/png"
             )
-            # STL Export des optimierten Modells
+            # STL Export des optimierten 2D Modells
             b_size = st.session_state.res * 0.7
             stl_data = create_stl_from_2D_structure(c_struct, thickness=b_size, beam_width=b_size)
     
             st.download_button(
                 label="3D-Modell exportieren (.stl)",
                 data=stl_data,
-                file_name=f"{st.session_state.name.replace(' ', '_')}_export.stl",
+                file_name=f"{st.session_state.name.replace(' ', '_')}_2_5D.stl",
                 mime="model/stl",
                 type="primary"
             )
