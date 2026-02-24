@@ -352,8 +352,7 @@ class Structure:
             return False, f"Es werden mindestens {required_dofs} fixierte Freiheitsgrade benötigt!"
         if festlager < 1:
             return False, "Mindestens 1 Festlager wird benötigt!"
-        if loslager < 1:
-            return False, "Mindestens 1 Loslager wird benötigt!"
+        
         
         return True, "Struktur stabil."
 

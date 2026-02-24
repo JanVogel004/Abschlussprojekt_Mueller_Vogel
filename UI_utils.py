@@ -143,13 +143,16 @@ def apply_constraints(struct):
             node.fixed[1] = True 
         elif c['type'] == "Kraft":
             if struct.dim == 2:
-                w_rad = np.radians(c.get('angle', 270.0))
-                node.force[0] = c['val'] * np.cos(w_rad) 
-                node.force[1] = -1.0 * c['val'] * np.sin(w_rad)
+                w_grad = c.get('angle', 270.0)
+                w_rad = np.radians(w_grad)
+                F = c['val']
+                # += statt = -> mehrere Kräfte am selben Knoten addieren sich
+                node.force[0] += F * np.cos(w_rad) 
+                node.force[1] += -1.0 * F * np.sin(w_rad)
             else:
-                node.force[0] = c.get('fx', 0.0)
-                node.force[1] = c.get('fz', c['val'])
-                node.force[2] = c.get('fy', 0.0)
+                node.force[0] += c.get('fx', 0.0)
+                node.force[1] += c.get('fz', c['val'])
+                node.force[2] += c.get('fy', 0.0)
 
 
 def plot_3d_structure(structure, title, e_mod, vis_factor=1.0, is_setup_view=False, current_mass_pct=None):

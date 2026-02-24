@@ -231,6 +231,42 @@ with tab2:
                     st.rerun()
 
         st.divider()
+        st.markdown("**Standard-Lastfälle (Vorlagen)**")
+        
+        # Mit streamlit Forms, damit die Seite nicht immer neu lädt
+        with st.form("vorlagen_form"):
+            vorlage = st.selectbox("Wähle einen klassischen Lastfall:", 
+                                   ["MBB-Balken (Mittige Last, beidseitig gelagert)", 
+                                    "Kragarm (Links eingespannt, rechts Last)",
+                                    "Träger mit Kragarm (Überhang rechts)"])
+            
+            # Erst wenn man submitted wird die Seite neu geladen
+            submitted = st.form_submit_button("Vorlage anwenden")
+            
+            if submitted:
+                if vorlage == "MBB-Balken (Mittige Last, beidseitig gelagert)":
+                    st.session_state.constraints = [
+                        {"type": "Festlager", "x": 0.0, "z": h},
+                        {"type": "Loslager", "x": w, "z": h},
+                        {"type": "Kraft", "x": w/2, "z": 0.0, "val": 5000.0, "angle": 270.0}
+                    ]
+                    st.rerun()
+                    
+                elif vorlage == "Kragarm (Links eingespannt, rechts Last)":
+                    st.session_state.constraints = [
+                        {"type": "Festlager", "x": 0.0, "z": 0.0},
+                        {"type": "Festlager", "x": 0.0, "z": h},
+                        {"type": "Kraft", "x": w, "z": h/2, "val": 5000.0, "angle": 270.0}
+                    ]
+                    st.rerun()
+                    
+                elif vorlage == "Träger mit Kragarm (Überhang rechts)":
+                    st.session_state.constraints = [
+                        {"type": "Festlager", "x": 0.0, "z": h},
+                        {"type": "Loslager", "x": w * 0.4, "z": h}, 
+                        {"type": "Kraft", "x": w, "z": 0.0, "val": 5000.0, "angle": 270.0}
+                    ]
+                    st.rerun()
         # Liste der Randbedingungen
         st.write("**Aktuelle Lasten & Lager:**")
 
