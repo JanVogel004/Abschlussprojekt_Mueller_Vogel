@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import io
 from model_storage import save_model  # Wird für save_current_model gebraucht
 import plotly.graph_objects as go
+from PIL import Image
 
 #Hilfsfunktionen
 
@@ -336,3 +337,10 @@ def plot_3d_structure(structure, title, e_mod, vis_factor=1.0, is_setup_view=Fal
 def plotly_to_png_bytes(fig):
     img_bytes = fig.to_image(format="png", width=1000, height=600, scale=2)
     return img_bytes
+
+def fig_to_pil_image(fig):
+    """Wandelt einen Matplotlib-Plot in ein PIL-Image für das GIF um."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=150, bbox_inches="tight")
+    buf.seek(0)
+    return Image.open(buf)

@@ -25,6 +25,8 @@ if 'target_mass' not in st.session_state:
     st.session_state.target_mass = 0.60
 if 'step_size' not in st.session_state:
     st.session_state.step_size = 0.04
+if 'gif_bytes' not in st.session_state:
+    st.session_state.gif_bytes = None
 
 
 # User Interface--------------------------------------------------------------------
@@ -409,6 +411,7 @@ with tab3:
 
                 plot_spot = st.empty()
                 curr_m = 1.0
+                gif_frames = []
                 
                 while curr_m > target:  # Rechne bis Zielmasse erreicht ist
                     if c_struct.solve() is None: break  # Verschiebung berechnen
@@ -444,7 +447,11 @@ with tab3:
                         fig = plot_with_stresses(c_struct, "Optimierung", e_mod, w, h, vis, 
                                             draw_sym_line=st.session_state.use_symmetry, 
                                             current_mass_pct=curr_m*100)
-                        plot_spot.pyplot(fig); plt.close(fig)
+                        plot_spot.pyplot(fig)
+
+                        gif_frames.append(fig_to_pil_image(fig))
+                        
+                        plt.close(fig)
                         st.session_state.last_result_fig = fig
                     else:
                         fig = plot_3d_structure(c_struct, "Optimierung", e_mod, vis, 
@@ -453,6 +460,17 @@ with tab3:
                         st.session_state.last_result_fig = fig
 
                 st.session_state.last_result_fig = fig
+
+                if s.dim == 2 and len(gif_frames) > 0:
+                    gif_buf = io.BytesIO()
+                    gif_frames[0].save(
+                        gif_buf, format='GIF',
+                        save_all=True, 
+                        append_images=gif_frames[1:],
+                        duration=200, # Dauer pro Frame in ms
+                        loop=0        # Unendlich wiederholen
+                    )
+                    st.session_state.gif_bytes = gif_buf.getvalue()
 
     # Ergebnis kann als PNG heruntergeladen werden
     if st.session_state.last_result_fig:
@@ -479,10 +497,19 @@ with tab3:
                 file_name="optimierte_geometrie.png",
                 mime="image/png"
             )
+
+            if st.session_state.gif_bytes:
+                st.download_button(
+                    label="Animation als GIF speichern", 
+                    data=st.session_state.gif_bytes, 
+                    file_name=f"{st.session_state.name.replace(' ', '_')}_optimierung.gif" if st.session_state.name else "2d_optimierung.gif", 
+                    mime="image/gif"
+                )
+
             # STL Export des optimierten Modells
             b_size = st.session_state.res * 0.7
-            stl_data = create_stl_from_2D_structure(c_struct, thickness=b_size, beam_width=b_size)
-    
+            stl_data = create_stl_from_2D_structure(s, thickness=b_size, beam_width=b_size)
+            
             st.download_button(
                 label="3D-Modell exportieren (.stl)",
                 data=stl_data,
