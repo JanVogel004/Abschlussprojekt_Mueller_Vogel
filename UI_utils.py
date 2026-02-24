@@ -209,6 +209,71 @@ def create_stl_from_2D_structure(structure, thickness=1.0, beam_width=1.0):
     stl_lines.append("endsolid FEM_Export")
     return "\n".join(stl_lines).encode('utf-8')
 
+def create_stl_from_true_3d_structure(structure, thickness=1.0):
+    # Generiert eine ASCII STL Datei aus einer 3D-Struktur"""
+    stl_lines = ["solid FEM_3D_Export"]
+    
+    def add_facet(v1, v2, v3):
+        n = np.cross(v2 - v1, v3 - v1)
+        norm = np.linalg.norm(n)
+        if norm > 0: n = n / norm
+        # Die Koordinaten runden da es sonst zu viele Zahlen werden
+        stl_lines.append(f"  facet normal {n[0]:.6f} {n[1]:.6f} {n[2]:.6f}")
+        stl_lines.append("    outer loop")
+        for v in [v1, v2, v3]:
+            stl_lines.append(f"      vertex {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}")
+        stl_lines.append("    endloop")
+        stl_lines.append("  endfacet")
+
+    for f in structure.federn:
+        if f.massepunkt_i.active and f.massepunkt_j.active:
+            p1 = f.massepunkt_i.coords
+            p2 = f.massepunkt_j.coords
+            vec = p2 - p1
+            L = np.linalg.norm(vec)
+            if L < 1e-6: continue
+            
+            # Richtungsvektor 
+            d = vec / L
+            
+            # Orthogonale Vektoren für die Querschnittsfläche
+            arbitrary = np.array([0.0, 0.0, 1.0])
+            # Wenn die Feder fast parallel zur z-Achse liegen andere Richtung wählen, damit das Kreuzprodukt nicht null wird
+            if np.abs(np.dot(d, arbitrary)) > 0.99:
+                arbitrary = np.array([0.0, 1.0, 0.0])
+                
+            u = np.cross(d, arbitrary)
+            u = u / np.linalg.norm(u)
+            w = np.cross(d, u)
+            w = w / np.linalg.norm(w)
+            
+            # Balken radius
+            t = thickness / 2.0
+            u = u * t
+            w = w * t
+            
+            # wieder die 8 eckpunkte berechnen
+            nodes = [
+                p1 + u + w,  # 0
+                p1 - u + w,  # 1
+                p1 - u - w,  # 2
+                p1 + u - w,  # 3
+                p2 + u + w,  # 4
+                p2 - u + w,  # 5
+                p2 - u - w,  # 6
+                p2 + u - w   # 7
+            ]
+            
+            # 12 Facetten für einen geschlossenen Quader
+            faces = [[0,1,5],[0,5,4], [1,2,6],[1,6,5], [2,3,7],[2,7,6], 
+                     [3,0,4],[3,4,7], [4,5,6],[4,6,7], [3,2,1],[3,1,0]]
+                     
+            for face in faces:
+                add_facet(nodes[face[0]], nodes[face[1]], nodes[face[2]])
+                
+    stl_lines.append("endsolid FEM_3D_Export")
+    return "\n".join(stl_lines).encode('utf-8')
+
 
 def plot_3d_structure(structure, title, e_mod, vis_factor=1.0, is_setup_view=False, current_mass_pct=None):
     fig = go.Figure()

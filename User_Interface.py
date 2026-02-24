@@ -27,6 +27,8 @@ if 'step_size' not in st.session_state:
     st.session_state.step_size = 0.04
 if 'gif_bytes' not in st.session_state:
     st.session_state.gif_bytes = None
+if 'optimized_struct' not in st.session_state:
+    st.session_state.optimized_struct = None
 
 
 # User Interface--------------------------------------------------------------------
@@ -293,6 +295,15 @@ with tab2:
                             {"type": "Loslager", "x": w, "y": d, "z": h},
                             {"type": "Kraft", "x": w/2, "y": d/2, "z": 0.0, "val": 8000.0, "angle": 270.0}
                         ]
+                    elif vorlage == "Zentraler Druckstab (Turm)":
+                        st.session_state.constraints = [
+                            {"type": "Festlager", "x": 0.0, "y": 0.0, "z": h},
+                            {"type": "Festlager", "x": w, "y": 0.0, "z": h},
+                            {"type": "Festlager", "x": 0.0, "y": d, "z": h},
+                            {"type": "Festlager", "x": w, "y": d, "z": h},
+                            {"type": "Kraft", "x": w/2, "y": d/2, "z": 0.0, "val": 10000.0, "angle": 270.0}
+                        ]
+                        
                 
                 
                 st.rerun()
@@ -460,6 +471,7 @@ with tab3:
                         st.session_state.last_result_fig = fig
 
                 st.session_state.last_result_fig = fig
+                st.session_state.optimized_struct = c_struct
 
                 if s.dim == 2 and len(gif_frames) > 0:
                     gif_buf = io.BytesIO()
@@ -472,48 +484,75 @@ with tab3:
                     )
                     st.session_state.gif_bytes = gif_buf.getvalue()
 
-    # Ergebnis kann als PNG heruntergeladen werden
-    if st.session_state.last_result_fig:
-        if s.dim == 3:
-            # Manueller Export für Plotly
-            btn_data = plotly_to_png_bytes(st.session_state.last_result_fig)
+        # 1. BILD DAUERHAFT ANZEIGEN (Das hat in deinem Code gefehlt!)
+        if st.session_state.last_result_fig and not start_clicked:
+            st.divider()
+            st.subheader("Letztes Optimierungsergebnis")
+            if s.dim == 2:
+                st.pyplot(st.session_state.last_result_fig)
+            else:
+                st.plotly_chart(st.session_state.last_result_fig, width="stretch")
 
-                # Download-Button für 3D-Plot
-            st.download_button(
-                label="3D-Ansicht als PNG speichern",
-                data=btn_data,
-                file_name="3d_optimierung.png",
-                mime="image/png"
-                )
-            
-        else:
-            btn_data = fig_to_png_bytes(st.session_state.last_result_fig)
+        # 2. Ergebnis kann als PNG, GIF oder STL exportiert werden
+        # Auch struct in einer session_state speichern, damit nach neuladen noch alles da ist
+        if st.session_state.last_result_fig and st.session_state.optimized_struct:
+            c_struct = st.session_state.optimized_struct
 
-            png_bytes = fig_to_png_bytes(st.session_state.last_result_fig)
+            if s.dim == 3:
+                # Manueller Export für Plotly
+                b_size = st.session_state.res * 0.7
+                btn_data = plotly_to_png_bytes(st.session_state.last_result_fig)
 
-            st.download_button(
-                label="Geometrie als PNG herunterladen",
-                data=png_bytes,
-                file_name="optimierte_geometrie.png",
-                mime="image/png"
-            )
-
-            if st.session_state.gif_bytes:
+                    # Download-Button für 3D-Plot
                 st.download_button(
-                    label="Animation als GIF speichern", 
-                    data=st.session_state.gif_bytes, 
-                    file_name=f"{st.session_state.name.replace(' ', '_')}_optimierung.gif" if st.session_state.name else "2d_optimierung.gif", 
-                    mime="image/gif"
+                    label="3D-Ansicht als PNG speichern",
+                    data=btn_data,
+                    file_name="3d_optimierung.png",
+                    mime="image/png"
+                    )
+                
+                # STL Export des optimierten 3D Modells
+                stl_data = create_stl_from_true_3d_structure(c_struct, thickness=b_size)
+                st.download_button(
+                    label="3D-Modell exportieren (.stl)",
+                    data=stl_data,
+                    file_name=f"{st.session_state.name.replace(' ', '_')}_3D.stl",
+                    mime="model/stl",
+                    type="primary"
                 )
 
-            # STL Export des optimierten Modells
-            b_size = st.session_state.res * 0.7
-            stl_data = create_stl_from_2D_structure(s, thickness=b_size, beam_width=b_size)
-            
-            st.download_button(
-                label="3D-Modell exportieren (.stl)",
-                data=stl_data,
-                file_name=f"{st.session_state.name.replace(' ', '_')}_export.stl",
-                mime="model/stl",
-                type="primary"
-            )
+                
+            else:
+                # 2D Plot als PNG exportieren
+                btn_data = fig_to_png_bytes(st.session_state.last_result_fig)
+
+                png_bytes = fig_to_png_bytes(st.session_state.last_result_fig)
+
+                st.download_button(
+                    label="Geometrie als PNG herunterladen",
+                    data=png_bytes,
+                    file_name="optimierte_geometrie.png",
+                    mime="image/png"
+                )
+
+                if st.session_state.gif_bytes:
+                    st.download_button(
+                        label="Animation als GIF speichern", 
+                        data=st.session_state.gif_bytes, 
+                        file_name=f"{st.session_state.name.replace(' ', '_')}_optimierung.gif" if st.session_state.name else "2d_optimierung.gif", 
+                        mime="image/gif"
+                    )
+
+
+                # STL Export des optimierten 2D Modells
+
+                b_size = st.session_state.res * 0.7
+                stl_data = create_stl_from_2D_structure(s, thickness=b_size, beam_width=b_size)
+                
+                st.download_button(
+                    label="3D-Modell exportieren (.stl)",
+                    data=stl_data,
+                    file_name=f"{st.session_state.name.replace(' ', '_')}_2_5D.stl",
+                    mime="model/stl",
+                    type="primary"
+                )
