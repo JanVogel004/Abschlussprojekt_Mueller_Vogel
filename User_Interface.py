@@ -130,7 +130,7 @@ if st.session_state.structure:
         st.pyplot(plot_with_stresses(s, "Vorschau", e_mod, w, h, vis_factor=0, is_setup_view=True, draw_sym_line=st.session_state.use_symmetry))
     else:
         fig_3d = plot_3d_structure(s, "Vorschau", e_mod, vis_factor=0, is_setup_view=True)
-        st.plotly_chart(fig_3d, use_container_width=True)
+        st.plotly_chart(fig_3d, width="stretch")
 
 else:
     st.info("Willkommen! Bitte erzeuge im Tab 'Geometrie' zuerst ein Gitter.")
@@ -212,7 +212,7 @@ with tab2:
                     st.session_state.constraints.append({"type": clean_type, "x": lx, "z": lz, "y": ly})
                     st.rerun()
         with c2:
-            # Kraft mit Richtung und Betrag ändern // steps in 1.0 schritten
+            # Kraft mit Richtung und Betrag ändern   steps in 1er schritten
             st.markdown("**Kraft**")
             with st.form("kraft_form"):
                 kx = st.number_input("Position X", 0.0, w, w/2, key="kx_in", step=1.0)
@@ -232,41 +232,69 @@ with tab2:
 
         st.divider()
         st.markdown("**Standard-Lastfälle (Vorlagen)**")
-        
-        # Mit streamlit Forms, damit die Seite nicht immer neu lädt
-        with st.form("vorlagen_form"):
-            vorlage = st.selectbox("Wähle einen klassischen Lastfall:", 
-                                   ["MBB-Balken (Mittige Last, beidseitig gelagert)", 
-                                    "Kragarm (Links eingespannt, rechts Last)",
-                                    "Träger mit Kragarm (Überhang rechts)"])
+
+        # Vorlagen je nach Dimension 
+        if s.dim == 2:
+            optionen = ["MBB-Balken (Mittige Last, beidseitig gelagert)", 
+                        "Kragarm (Links eingespannt, rechts Last)",
+                        "Träger mit Kragarm (Überhang rechts)"]
+        else:
+            optionen = ["3D-Kragarm (Einseitig eingespannt)", 
+                        "3D-Brücke (Vier Punkt Lagerung)",
+                        "Zentraler Druckstab (Turm)"]
             
-            # Erst wenn man submitted wird die Seite neu geladen
+        # Wieder mit st form, damit die Seite nicht sofort neugeladen wird
+        with st.form("vorlagen_form"):
+            vorlage = st.selectbox("Wähle einen Lastfall:", optionen)
+            
             submitted = st.form_submit_button("Vorlage anwenden")
             
             if submitted:
-                if vorlage == "MBB-Balken (Mittige Last, beidseitig gelagert)":
-                    st.session_state.constraints = [
-                        {"type": "Festlager", "x": 0.0, "z": h},
-                        {"type": "Loslager", "x": w, "z": h},
-                        {"type": "Kraft", "x": w/2, "z": 0.0, "val": 5000.0, "angle": 270.0}
-                    ]
-                    st.rerun()
+                # 2D
+                if s.dim == 2:
+                    if vorlage == "MBB-Balken (Mittige Last, beidseitig gelagert)":
+                        st.session_state.constraints = [
+                            {"type": "Festlager", "x": 0.0, "z": h},
+                            {"type": "Loslager", "x": w, "z": h},
+                            {"type": "Kraft", "x": w/2, "z": 0.0, "val": 5000.0, "angle": 270.0}
+                        ]
+                    elif vorlage == "Kragarm (Links eingespannt, rechts Last)":
+                        st.session_state.constraints = [
+                            {"type": "Festlager", "x": 0.0, "z": 0.0},
+                            {"type": "Festlager", "x": 0.0, "z": h},
+                            {"type": "Kraft", "x": w, "z": h/2, "val": 5000.0, "angle": 270.0}
+                        ]
+                    elif vorlage == "Träger mit Kragarm (Überhang rechts)":
+                        st.session_state.constraints = [
+                            {"type": "Festlager", "x": 0.0, "z": h},
+                            {"type": "Loslager", "x": w * 0.4, "z": h}, 
+                            {"type": "Kraft", "x": w, "z": 0.0, "val": 5000.0, "angle": 270.0}
+                        ]
+
+                # 3D
+                elif s.dim == 3:
+                    d = st.session_state.dims[2] if len(st.session_state.dims) > 2 else 1.0
                     
-                elif vorlage == "Kragarm (Links eingespannt, rechts Last)":
-                    st.session_state.constraints = [
-                        {"type": "Festlager", "x": 0.0, "z": 0.0},
-                        {"type": "Festlager", "x": 0.0, "z": h},
-                        {"type": "Kraft", "x": w, "z": h/2, "val": 5000.0, "angle": 270.0}
-                    ]
-                    st.rerun()
-                    
-                elif vorlage == "Träger mit Kragarm (Überhang rechts)":
-                    st.session_state.constraints = [
-                        {"type": "Festlager", "x": 0.0, "z": h},
-                        {"type": "Loslager", "x": w * 0.4, "z": h}, 
-                        {"type": "Kraft", "x": w, "z": 0.0, "val": 5000.0, "angle": 270.0}
-                    ]
-                    st.rerun()
+                    if vorlage == "3D-Kragarm (Einseitig eingespannt)":
+                        st.session_state.constraints = [
+                            {"type": "Festlager", "x": 0.0, "y": 0.0, "z": 0.0},
+                            {"type": "Festlager", "x": 0.0, "y": d, "z": 0.0},
+                            {"type": "Festlager", "x": 0.0, "y": 0.0, "z": h},
+                            {"type": "Festlager", "x": 0.0, "y": d, "z": h},
+                            {"type": "Kraft", "x": w, "y": d/2, "z": h/2, "val": 5000.0, "angle": 270.0}
+                        ]
+                    elif vorlage == "3D-Brücke (Vier Punkt Lagerung)":
+                        st.session_state.constraints = [
+                            {"type": "Festlager", "x": 0.0, "y": 0.0, "z": h},
+                            {"type": "Loslager", "x": 0.0, "y": d, "z": h},
+                            {"type": "Loslager", "x": w, "y": 0.0, "z": h},
+                            {"type": "Loslager", "x": w, "y": d, "z": h},
+                            {"type": "Kraft", "x": w/2, "y": d/2, "z": 0.0, "val": 8000.0, "angle": 270.0}
+                        ]
+                
+                
+                st.rerun()
+
         # Liste der Randbedingungen
         st.write("**Aktuelle Lasten & Lager:**")
 
@@ -421,7 +449,7 @@ with tab3:
                     else:
                         fig = plot_3d_structure(c_struct, "Optimierung", e_mod, vis, 
                                             current_mass_pct=curr_m*100)
-                        plot_spot.plotly_chart(fig, use_container_width=True)
+                        plot_spot.plotly_chart(fig, width = "stretch")
                         st.session_state.last_result_fig = fig
 
                 st.session_state.last_result_fig = fig
