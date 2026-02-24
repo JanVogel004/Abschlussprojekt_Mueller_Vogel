@@ -30,8 +30,10 @@ def save_model(
     name,
     width,
     height,
+    depth,
     nx,
     nz,
+    ny,
     res,
     e_mod,
     constraints,
@@ -51,9 +53,11 @@ def save_model(
 
         "width": width,
         "height": height,
+        "depth": depth,
 
         "nx": nx,
         "nz": nz,
+        "ny": ny,
         "res": res,
 
         "e_mod": e_mod,
