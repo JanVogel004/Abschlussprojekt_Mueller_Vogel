@@ -23,9 +23,9 @@ def save_current_model(target, step, name):
         height=height,
         depth=depth,
 
-        nx=st.session_state.nx,
-        nz=st.session_state.nz,
-        ny=st.session_state.ny,
+        nx=st.session_state.get('nx', 1),
+        nz=st.session_state.get('nz', 1),
+        ny=st.session_state.get('ny', 1),
 
         res=st.session_state.res,
 

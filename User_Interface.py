@@ -29,6 +29,12 @@ if 'gif_bytes' not in st.session_state:
     st.session_state.gif_bytes = None
 if 'optimized_struct' not in st.session_state:
     st.session_state.optimized_struct = None
+if 'nx' not in st.session_state:
+    st.session_state.nx = 1
+if 'nz' not in st.session_state:
+    st.session_state.nz = 1
+if 'ny' not in st.session_state:
+    st.session_state.ny = 1
 
 
 # User Interface--------------------------------------------------------------------
