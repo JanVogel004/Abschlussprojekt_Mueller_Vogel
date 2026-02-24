@@ -3,22 +3,29 @@ import numpy as np
 import matplotlib.pyplot as plt
 import io
 from model_storage import save_model  # Wird für save_current_model gebraucht
+import plotly.graph_objects as go
 
 #Hilfsfunktionen
 
 # Funktion um Parameter eines Modells zu speichern
 def save_current_model(target, step, name):
 
-    width, height = st.session_state.dims
+    dims = st.session_state.dims
+    width = float(dims[0])
+    height = float(dims[1])
+    depth = float(dims[2]) if len(dims) > 2 else 0.0
 
     save_model(
         name=name,
 
         width=width,
         height=height,
+        depth=depth,
 
-        nx=int(width / st.session_state.res),
-        nz=int(height / st.session_state.res),
+        nx=st.session_state.nx,
+        nz=st.session_state.nz,
+        ny=st.session_state.ny,
+
         res=st.session_state.res,
 
         e_mod=st.session_state.e_modul,
@@ -121,7 +128,13 @@ def apply_constraints(struct):
     
     # 2. Liste aus Streamlit durchgehen
     for c in st.session_state.constraints:
-        target = np.array([c['x'], c['z']]) # Sucht nächsten Knoten zum angegebenen Punkt
+        
+        if struct.dim == 2:
+            target = np.array([c['x'], c['z']])
+        else:
+            # Reihenfolge im model.py ist [x, z, y]
+            target = np.array([c['x'], c['z'], c.get('y', 0.0)])
+
         node = min(struct.massepunkte, key=lambda m: np.linalg.norm(m.coords - target))
         
         if c['type'] == "Festlager":    # setzt Lager oder Kraft
@@ -129,9 +142,140 @@ def apply_constraints(struct):
         elif c['type'] == "Loslager": 
             node.fixed[1] = True 
         elif c['type'] == "Kraft":
-            w_grad = c.get('angle', 270.0)
-            w_rad = np.radians(w_grad)
-            F = c['val']
+            if struct.dim == 2:
+                w_rad = np.radians(c.get('angle', 270.0))
+                node.force[0] = c['val'] * np.cos(w_rad) 
+                node.force[1] = -1.0 * c['val'] * np.sin(w_rad)
+            else:
+                node.force[0] = c.get('fx', 0.0)
+                node.force[1] = c.get('fz', c['val'])
+                node.force[2] = c.get('fy', 0.0)
+
+
+def plot_3d_structure(structure, title, e_mod, vis_factor=1.0, is_setup_view=False, current_mass_pct=None):
+    fig = go.Figure()
+    full_title = f"{title} (Material: {current_mass_pct:.1f}%)" if current_mass_pct is not None else title
+
+    # 1. Spannungs-Skalierung berechnen
+    all_sigmas = []
+    if not is_setup_view:
+        for f in structure.federn:
+            if f.massepunkt_i.active and f.massepunkt_j.active:
+                L0 = np.linalg.norm(f.massepunkt_j.coords - f.massepunkt_i.coords)
+                if L0 > 1e-9:
+                    p1_real = f.massepunkt_i.coords + f.massepunkt_i.displacement[:structure.dim]
+                    p2_real = f.massepunkt_j.coords + f.massepunkt_j.displacement[:structure.dim]
+                    L1 = np.linalg.norm(p2_real - p1_real)
+                    all_sigmas.append(abs((L1 - L0) / L0) * e_mod)
+    
+    max_s = np.percentile(all_sigmas, 95) if len(all_sigmas) > 5 else 1.0
+    if max_s < 1e-3: max_s = 1.0
+
+    # 2. Geometrie aufbereiten
+    edge_x, edge_y, edge_z, edge_colors = [], [], [], []
+    for f in structure.federn:
+        if is_setup_view or (f.massepunkt_i.active and f.massepunkt_j.active):
+            # Koordinaten extrahieren
+            p1 = f.massepunkt_i.coords + f.massepunkt_i.displacement[:3] * vis_factor
+            p2 = f.massepunkt_j.coords + f.massepunkt_j.displacement[:3] * vis_factor
             
-            node.force[0] = F * np.cos(w_rad) 
-            node.force[1] = -1.0 * F * np.sin(w_rad)
+            # Spannung für Farbe
+            sigma = 0
+            if not is_setup_view:
+                L0 = np.linalg.norm(f.massepunkt_j.coords - f.massepunkt_i.coords)
+                p1_r = f.massepunkt_i.coords + f.massepunkt_i.displacement[:structure.dim]
+                p2_r = f.massepunkt_j.coords + f.massepunkt_j.displacement[:structure.dim]
+                sigma = abs((np.linalg.norm(p2_r - p1_r) - L0) / L0) * e_mod
+
+            # Mapping auf Plotly-Achsen:
+            edge_x.extend([p1[0], p2[0], None]) # Breite (Rechts)
+            edge_z.extend([p1[1], p2[1], None]) # Höhe (Abwärts)
+            edge_y.extend([p1[2], p2[2], None]) # Tiefe (Hinten)
+            edge_colors.extend([sigma, sigma, sigma])
+
+    # Federn zeichnen
+    line_cfg = dict(color='#A0A0A0', width=2) if is_setup_view else dict(
+        color=edge_colors, colorscale='Plasma', cmin=0, cmax=max_s, width=4, 
+        colorbar=dict(title="Spannung [N/mm²]", len=0.5)
+    )
+    fig.add_trace(go.Scatter3d(x=edge_x, y=edge_y, z=edge_z, mode='lines', line=line_cfg, name='Gitter'))
+
+    # 3. Knoten-Punkte zeichnen
+    node_x, node_y, node_z, node_colors = [], [], [], []
+    for m in structure.massepunkte:
+        if is_setup_view or m.active:
+            pos = m.coords + m.displacement[:3] * vis_factor
+            node_x.append(pos[0])
+            node_z.append(pos[1])
+            node_y.append(pos[2])
+            node_colors.append('red' if np.all(m.fixed) else ('orange' if np.any(m.fixed) else 'blue'))
+
+    fig.add_trace(go.Scatter3d(x=node_x, y=node_y, z=node_z, mode='markers',
+                               marker=dict(size=4, color=node_colors), name='Knoten'))
+
+    # 4. Layout:
+    fig.update_layout(
+        title=full_title,
+        scene=dict(
+            xaxis_title='X (Rechts)',
+            yaxis_title='Y (Hinten)',
+            zaxis_title='Z (Abwärts)',
+            zaxis=dict(autorange='reversed'), # Z-Achse umkehren für Ursprung oben
+            aspectmode='data'
+        ),
+        margin=dict(l=0, r=0, b=0, t=40)
+    )
+
+    # 4.5 Kraft-Pfeile in 3D zeichnen
+    c_x, c_y, c_z, c_u, c_v, c_w = [], [], [], [], [], []
+    for m in structure.massepunkte:
+        f_norm = np.linalg.norm(m.force)
+        # Nur zeichnen, wenn eine Kraft wirkt
+        if (is_setup_view or m.active) and f_norm > 0:
+            pos = np.zeros(3); pos[:structure.dim] = m.coords
+            disp = np.zeros(3); disp[:structure.dim] = m.displacement
+            pos += disp * vis_factor
+            
+            c_x.append(pos[0]) # X
+            c_z.append(pos[1]) # Z
+            c_y.append(pos[2] if structure.dim == 3 else 0.0) # Y
+            
+            scale = 4.0 / f_norm 
+            
+            c_u.append(m.force[0] * scale)
+            c_v.append((m.force[2] if structure.dim == 3 else 0.0) * scale)
+            c_w.append(m.force[1] * scale)
+
+    if c_x:
+        fig.add_trace(go.Cone(
+            x=c_x, y=c_y, z=c_z,
+            u=c_u, v=c_v, w=c_w,
+            sizemode="absolute", sizeref=4.0, 
+            anchor="tip", # Spitze bleibt auf dem Angriffspunkt
+            colorscale=[[0, '#00FF00'], [1, '#00FF00']], 
+            showscale=False,
+            name='Kraft',
+            hoverinfo='none'
+        ))
+
+    # 5. Layout:
+    fig.update_layout(
+        title=full_title,
+        scene=dict(
+            xaxis_title='X (Rechts)',
+            yaxis_title='Y (Hinten)',
+            zaxis_title='Z (Abwärts)',
+            zaxis=dict(autorange='reversed'),
+            camera=dict(
+                eye=dict(x=1.8, y=-1.8, z=-1.2) 
+            ),
+            aspectmode='data'
+        ),
+        margin=dict(l=0, r=0, b=0, t=40)
+    )
+
+    return fig
+
+def plotly_to_png_bytes(fig):
+    img_bytes = fig.to_image(format="png", width=1000, height=600, scale=2)
+    return img_bytes

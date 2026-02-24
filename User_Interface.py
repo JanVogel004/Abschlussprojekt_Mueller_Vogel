@@ -75,28 +75,37 @@ with st.sidebar:
 
         params = models[selected_index]
 
-        # Parameter in session_state laden
-        st.session_state.dims = (params["width"], params["height"])
+        # 1. Parameter in session_state laden
+        is_3d = "depth" in params and params["depth"] > 0
+        
+        if is_3d:
+            st.session_state.dims = (params["width"], params["height"], params["depth"])
+        else:
+            st.session_state.dims = (params["width"], params["height"])
+
         st.session_state.e_modul = params["e_mod"]
         st.session_state.constraints = params["constraints"]
         st.session_state.use_symmetry = params["symmetry"]
-        st.session_state.res = params["width"] / (params["nx"] - 1)
+        st.session_state.res = params["res"]
         st.session_state.name = params["name"]
         st.session_state.target_mass = params.get("target_mass", 0.60)
         st.session_state.step_size = params.get("step", 0.04)
+        st.session_state.nx = params["nx"]
+        st.session_state.nz = params["nz"]
+        st.session_state.ny = params.get("ny", 1)
 
-        nx = params["nx"]
-        nz = params["nz"]
-        e_mod = params["e_mod"]
+        # 2. Struktur erzeugen
+        if is_3d:
+            s = Structure(dim=3)
+            s.generate_box_mesh(params["nx"], params["ny"], params["nz"], 
+                                params["width"], params["depth"], params["height"])
+        else:
+            s = Structure(dim=2)
+            s.generate_rect_mesh(params["nx"], params["nz"], params["width"], params["height"])
 
-        # Struktur neu erzeugen
-
-        s = Structure(dim=2)
-        # Grundstruktur wieder erzeugen
-        s.generate_rect_mesh(params["nx"], params["nz"], params["width"], params["height"])
-
+        # 3. Materialsteifigkeit und Status zurücksetzen
         for f in s.federn: f.k = params["e_mod"] / st.session_state.res
-
+        
         for m in s.massepunkte:
             m.active = True
             m.displacement[:] = 0.0
@@ -104,20 +113,24 @@ with st.sidebar:
             m.fixed[:] = False
 
         st.session_state.structure = s
-
-        st.success("Modell geladen")
+        st.session_state.last_result_fig = None # Altes Bild löschen
+        st.success("Modell geladen!")
         st.rerun()
 
-    
 
 
 if st.session_state.structure:
-    s, (w, h), e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
+    s, dims, e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
+    w, h = dims[0], dims[1]
+    d = dims[2] if len(dims) > 2 else 0.0  # Holt die Tiefe, wenn 3D
     apply_constraints(s)
 
     st.subheader("Ausgangslage")
-    # Plot der Ausgangslage mit Randbedingungen, Kräften und eventuell Symmetrielinie
-    st.pyplot(plot_with_stresses(s, "Vorschau", e_mod, w, h, vis_factor=0, is_setup_view=True, draw_sym_line=st.session_state.use_symmetry))
+    if s.dim == 2:
+        st.pyplot(plot_with_stresses(s, "Vorschau", e_mod, w, h, vis_factor=0, is_setup_view=True, draw_sym_line=st.session_state.use_symmetry))
+    else:
+        fig_3d = plot_3d_structure(s, "Vorschau", e_mod, vis_factor=0, is_setup_view=True)
+        st.plotly_chart(fig_3d, use_container_width=True)
 
 else:
     st.info("Willkommen! Bitte erzeuge im Tab 'Geometrie' zuerst ein Gitter.")
@@ -129,12 +142,20 @@ tab1, tab2, tab3 = st.tabs(["Geometrie", "Randbedingungen", "Optimierung"])
 
 
 with tab1:
+    dim_mode = st.radio("Dimension", ["2D", "3D"], horizontal=True)
     with st.form("geometrie_form"):
-        # Startwerte für Breite, Höhe, Auflösung und Material
-        width = st.number_input("Gesamtbreite (m)", value=40.0, step=1.0)
-        height = st.number_input("Gesamthöhe (m)", value=15.0, step=1.0)
-        res = st.slider("Auflösung (m)", 0.01, 3.0, 1.5)
+        # Startwerte für Breite, Höhe, Tiefe, Auflösung und Material
+        col_w, col_h, col_d = st.columns(3)
+        with col_w:
+            width = st.number_input("Breite X (m)", value=40.0, step=1.0)
+        with col_h:
+            height = st.number_input("Höhe Z (m)", value=15.0, step=1.0)
+        with col_d:
+            # Tiefe ist nur in 3D anwählbar
+            depth = st.number_input("Tiefe Y (m)", value=10.0, step=1.0, disabled=(dim_mode == "2D"))
+        res = st.slider("Auflösung (m)", 0.1, 4.0, 1.5, step=0.1)
         st.divider()
+
         mat_type = st.selectbox("Material", ["Baustahl S235", "Aluminium", "Holz", "Custom"])
         e_mod_map = {"Baustahl S235": 210000.0, "Aluminium": 70000.0, "Holz": 10000.0, "Custom": 1000.0}
         e_modul = st.number_input("E-Modul (N/mm²)", value=e_mod_map[mat_type])
@@ -142,11 +163,24 @@ with tab1:
         if st.form_submit_button("Gitter neu erzeugen", type="primary"):
             nx = int(width / res); nx = nx + 1 if nx % 2 == 0 else nx   # Kontenanzahl, immer ungerade für Symmetrie
             nz = int(height / res); nz = nz + 1 if nz % 2 == 0 else nz
-            s = Structure(dim=2)
-            s.generate_rect_mesh(nx, nz, width, height)   # Gitter erzeugen basierend auf Breite, Höhe und Auflösung
+            # Weiche für 2D / 3D
+            if dim_mode == "2D":
+                s = Structure(dim=2)
+                s.generate_rect_mesh(nx, nz, width, height)
+                st.session_state.dims = (width, height) # 2 Werte speichern
+            else:
+                ny = int(depth / res); ny = ny + 1 if ny % 2 == 0 else ny
+                s = Structure(dim=3)
+                s.generate_box_mesh(nx, ny, nz, width, depth, height)
+                st.session_state.dims = (width, height, depth) # 3 Werte speichern
+                st.session_state.ny = ny
+            
+            st.session_state.nx = nx
+            st.session_state.nz = nz
+
             for f in s.federn: f.k = e_modul / res
             st.session_state.structure = s
-            st.session_state.dims = (width, height)
+
             st.session_state.e_modul = e_modul # Model speichern
             st.session_state.last_result_fig = None
             st.session_state.res = res
@@ -159,8 +193,10 @@ with tab2:
     if not st.session_state.structure:
         st.warning("Bitte erstelle zuerst ein Gitter im Tab 'Geometrie'!")
     else:
-        s, (w, h), e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
-        
+        s, dims, e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
+        w, h = dims[0], dims[1]
+        d = dims[2] if len(dims) > 2 else 0.0  # Holt die Tiefe, wenn 3D
+
         c1, c2 = st.columns(2)
         
         with c1:
@@ -168,11 +204,12 @@ with tab2:
             with st.form("lager_form"):
                 lx = st.number_input("Position X", 0.0, w, 0.0, key="lx_in", step=1.0)
                 lz = st.number_input("Position Z", 0.0, h, h, key="lz_in", step=1.0)
+                ly = st.number_input("Position Y (Tiefe)", 0.0, d, 0.0, step=1.0, disabled=(s.dim==2))
                 ltype = st.radio("Typ", ["Festlager (∆)", "Loslager (○)"], key="ltype_in")
                 
                 if st.form_submit_button("Lager anwenden"):
                     clean_type = "Festlager" if "Fest" in ltype else "Loslager"
-                    st.session_state.constraints.append({"type": clean_type, "x": lx, "z": lz})
+                    st.session_state.constraints.append({"type": clean_type, "x": lx, "z": lz, "y": ly})
                     st.rerun()
         with c2:
             # Kraft mit Richtung und Betrag ändern // steps in 1.0 schritten
@@ -180,11 +217,17 @@ with tab2:
             with st.form("kraft_form"):
                 kx = st.number_input("Position X", 0.0, w, w/2, key="kx_in", step=1.0)
                 kz = st.number_input("Position Z", 0.0, h, 0.0, key="kz_in", step=1.0)
+                ky = st.number_input("Position Y (Tiefe)", 0.0, d, d/2, step=1.0, disabled=(s.dim==2))
                 fv = st.number_input("Betrag (N)", value=5000.0, key="fv_in", step=500.0)
-                fw = st.number_input("Winkel (°)", 0.0, 360.0, 270.0, step=45.0, key="fw_in")
+                if s.dim == 2:
+                    fw = st.number_input("Winkel (°)", 0.0, 360.0, 270.0, step=45.0)
+                else:
+                    st.info("In 3D wirkt die Kraft standardmäßig senkrecht nach unten.")
                 
                 if st.form_submit_button("Kraft anwenden"): 
-                    st.session_state.constraints.append({"type": "Kraft", "x": kx, "z": kz, "val": fv, "angle": fw}) 
+                    constraint = {"type": "Kraft", "x": kx, "z": kz, "y": ky, "val": fv}
+                    if s.dim == 2: constraint["angle"] = fw
+                    st.session_state.constraints.append(constraint) 
                     st.rerun()
 
         st.divider()
@@ -229,8 +272,10 @@ with tab3:
     if not st.session_state.structure:
         st.warning("Bitte erstelle zuerst ein Gitter im Tab 'Geometrie'!")
     else:
-        s, (w, h), e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
-        
+        s, dims, e_mod = st.session_state.structure, st.session_state.dims, st.session_state.e_modul
+        w, h = dims[0], dims[1]
+        d = dims[2] if len(dims) > 2 else 0.0  # Holt die Tiefe, wenn 3D
+
         with st.form("optimierung_form"):
             # Checkbox Symetrie-Modus
             st.session_state.use_symmetry = st.checkbox("Symmetrie-Modus nutzen (Spiegelt Materialabtrag)", value=st.session_state.use_symmetry)
@@ -330,21 +375,32 @@ with tab3:
 
                     # 5. Plotten der aktuellen Struktur mit Spannungen
                     curr_m = len([m for m in c_struct.massepunkte if m.active]) / len(c_struct.massepunkte)
-                    fig = plot_with_stresses(c_struct, "Optimierung", e_mod, w, h, vis, 
-                                        draw_sym_line=st.session_state.use_symmetry, 
-                                        current_mass_pct=curr_m*100)
-                    plot_spot.pyplot(fig); plt.close(fig)
+                    
+                    if s.dim == 2:
+                        fig = plot_with_stresses(c_struct, "Optimierung", e_mod, w, h, vis, 
+                                            draw_sym_line=st.session_state.use_symmetry, 
+                                            current_mass_pct=curr_m*100)
+                        plot_spot.pyplot(fig); plt.close(fig)
+                        st.session_state.last_result_fig = fig
+                    else:
+                        fig = plot_3d_structure(c_struct, "Optimierung", e_mod, vis, 
+                                            current_mass_pct=curr_m*100)
+                        plot_spot.plotly_chart(fig, use_container_width=True)
+                        st.session_state.last_result_fig = fig
 
                 st.session_state.last_result_fig = fig
 
-                # Ergebnis kann als PNG heruntergeladen werden
-                if st.session_state.last_result_fig:
+    # Ergebnis kann als PNG heruntergeladen werden
+    if st.session_state.last_result_fig:
+        if s.dim == 3:
+            # Manueller Export für Plotly
+            btn_data = plotly_to_png_bytes(st.session_state.last_result_fig)
+        else:
+            btn_data = fig_to_png_bytes(st.session_state.last_result_fig)
 
-                    png_bytes = fig_to_png_bytes(st.session_state.last_result_fig)
-
-                    st.download_button(
-                        label="Geometrie als PNG herunterladen",
-                        data=png_bytes,
-                        file_name="optimierte_geometrie.png",
-                        mime="image/png"
-                    )
+        st.download_button(
+            label="3D-Ansicht als PNG speichern",
+            data=btn_data,
+            file_name="3d_optimierung.png",
+            mime="image/png"
+        )

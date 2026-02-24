@@ -59,8 +59,8 @@ class Structure:
             # Im 2D-Fall speichern wir [x, z]
             coords = np.array([x, z])
         else:
-            # Im 3D-Fall speichern wir [x, y, z]
-            coords = np.array([x, y, z])
+            # Im 3D-Fall speichern wir [x, z, y]
+            coords = np.array([x, z, y])
         # Initial keine Kraft, nicht fixiert
         fixed = np.zeros(self.dim, dtype=bool)
         force = np.zeros(self.dim)
@@ -395,3 +395,61 @@ class Structure:
                 return False # Pfad unterbrochen.
         
         return True
+    
+
+    def generate_box_mesh(self, nx: int, ny: int, nz: int, width: float, depth: float, height: float):
+        """
+        Erstellt ein 3D-Quader-Gitter mit nx * ny * nz Knoten.
+        """
+        # 1. Alte Daten löschen und Dimension auf 3D setzen
+        self.massepunkte = []
+        self.federn = []
+        self.dim = 3
+        
+        # Abstände berechnen
+        dx = width / (nx - 1) if nx > 1 else 0
+        dy = depth / (ny - 1) if ny > 1 else 0
+        dz = height / (nz - 1) if nz > 1 else 0
+        
+        # 2. Knoten erstellen
+        for z_i in range(nz):
+            for y_i in range(ny):
+                for x_i in range(nx):
+                    self.add_Massepunkt(x_i * dx, z_i * dz, y=y_i * dy)
+
+        # Hilfsfunktion, 1D-Index zu 3D-Punkt berechnen
+        def get_idx(x, y, z):
+            return z * (nx * ny) + y * nx + x
+
+        # 3. Federn erstellen
+        directions = [
+            (1, 0, 0), (0, 1, 0), (0, 0, 1),               # Orthogonal (Gerade)
+            (1, 1, 0), (1, -1, 0),                         # Fläche XY (Diagonalen)
+            (1, 0, 1), (-1, 0, 1),                         # Fläche XZ (Diagonalen)
+            (0, 1, 1), (0, -1, 1),                         # Fläche YZ (Diagonalen)
+            (1, 1, 1), (1, -1, 1), (-1, 1, 1), (-1, -1, 1) # Quer durch den Raum (Raumdiagonalen)
+        ]
+        
+        for z_i in range(nz):
+            for y_i in range(ny):
+                for x_i in range(nx):
+                    idx = get_idx(x_i, y_i, z_i)
+                    
+                    for dx_dir, dy_dir, dz_dir in directions:
+                        nx_i = x_i + dx_dir
+                        ny_i = y_i + dy_dir
+                        nz_i = z_i + dz_dir
+                        
+                        # Prüfen, ob der Zielknoten noch im Gitter liegt
+                        if 0 <= nx_i < nx and 0 <= ny_i < ny and 0 <= nz_i < nz:
+                            idx_neighbor = get_idx(nx_i, ny_i, nz_i)
+                            
+                            # Steifigkeit abhängig von der Länge machen (wie 1/sqrt(2) im 2D)
+                            length_factor = np.sqrt(dx_dir**2 + dy_dir**2 + dz_dir**2)
+                            k_val = 1.0 / length_factor
+                            
+                            self.add_Feder(idx, idx_neighbor, k=k_val)
+    
+        # Wenn Matrix noch im Speicher ist, löschen um neuen Aufbau zu erzwingen
+        if hasattr(self, "K_base"):
+            del self.K_base
