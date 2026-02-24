@@ -135,3 +135,50 @@ def apply_constraints(struct):
             #mehrere Kräfte gleichzeitig möglich
             node.force[0] += F * np.cos(w_rad) 
             node.force[1] += -1.0 * F * np.sin(w_rad)
+
+def create_stl_from_2D_structure(structure, thickness=1.0, beam_width=1.0):
+    # STL Datei generieren
+    # STL ist eine lange Liste von Facetten, jede definiert durch 3 Punkte und einen Normalenvektor
+    stl_lines = ["solid FEM_Export"]
+    
+    def add_facet(v1, v2, v3):
+        # Einfacher Normalenvektor
+        n = np.cross(v2 - v1, v3 - v1)
+        n = n / np.linalg.norm(n) if np.linalg.norm(n) > 0 else n
+        stl_lines.append(f"  facet normal {n[0]} {n[1]} {n[2]}")
+        stl_lines.append("    outer loop")
+        for v in [v1, v2, v3]:
+            stl_lines.append(f"      vertex {v[0]:.6f} {v[1]:.6f} {v[2]:.6f}")
+        stl_lines.append("    endloop")
+        stl_lines.append("  endfacet")
+
+    for f in structure.federn:
+        if f.massepunkt_i.active and f.massepunkt_j.active:
+            p1, p2 = f.massepunkt_i.coords, f.massepunkt_j.coords
+            vec = p2 - p1
+            L = np.linalg.norm(vec)
+            if L < 1e-6: continue
+            
+            # Ausrichtung für Balkendicke
+            dir_vec = vec / L
+            perp = np.array([-dir_vec[1], dir_vec[0]]) * (beam_width / 2)
+            z_off = thickness / 2
+            
+            # 8 Eckpunkte des 3D-Balkens 
+            nodes = [
+                np.array([p1[0]-perp[0], p1[1]-perp[1],  z_off]), # 0
+                np.array([p1[0]+perp[0], p1[1]+perp[1],  z_off]), # 1
+                np.array([p1[0]+perp[0], p1[1]+perp[1], -z_off]), # 2
+                np.array([p1[0]-perp[0], p1[1]-perp[1], -z_off]), # 3
+                np.array([p2[0]-perp[0], p2[1]-perp[1],  z_off]), # 4
+                np.array([p2[0]+perp[0], p2[1]+perp[1],  z_off]), # 5
+                np.array([p2[0]+perp[0], p2[1]+perp[1], -z_off]), # 6
+                np.array([p2[0]-perp[0], p2[1]-perp[1], -z_off])  # 7
+            ]
+            # 12 Facetten für einen geschlossenen Quader
+            faces = [[0,1,5],[0,5,4], [1,2,6],[1,6,5], [2,3,7],[2,7,6], [3,0,4],[3,4,7], [4,5,6],[4,6,7], [3,2,1],[3,1,0]]
+            for face in faces:
+                add_facet(nodes[face[0]], nodes[face[1]], nodes[face[2]])
+                
+    stl_lines.append("endsolid FEM_Export")
+    return "\n".join(stl_lines).encode('utf-8')

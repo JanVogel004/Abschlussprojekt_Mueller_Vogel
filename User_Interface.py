@@ -384,3 +384,14 @@ with tab3:
                         file_name="optimierte_geometrie.png",
                         mime="image/png"
                     )
+                    # STL Export des optimierten Modells
+                    b_size = st.session_state.res * 0.7
+                    stl_data = create_stl_from_2D_structure(c_struct, thickness=b_size, beam_width=b_size)
+            
+                    st.download_button(
+                        label="3D-Modell exportieren (.stl)",
+                        data=stl_data,
+                        file_name=f"{st.session_state.name.replace(' ', '_')}_export.stl",
+                        mime="model/stl",
+                        type="primary"
+                    )
