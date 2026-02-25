@@ -121,45 +121,70 @@ def plot_with_stresses(structure, title, e_mod, w_orig, h_orig, vis_factor, is_s
     return fig
 
 def apply_constraints(struct):
-    # 1. Alles zurücksetzen
+    # Alles zurücksetzen
     for m in struct.massepunkte: 
         m.fixed[:] = False
         m.force[:] = 0.0
     
-    # 2. Liste aus Streamlit durchgehen
+    # Liste aus Streamlit durchgehen
     for c in st.session_state.constraints:
         
+        # Streckenlast
+        if "Streckenlast" in c['type']:
+            q = c['val']
+            x_start, x_end = c['x_start'], c['x_end']
+            z_target = c['z']
+            w_rad = np.radians(c.get('angle', 270.0))
+            tol = 1e-3
+            
+            nodes_on_line = []
+            for m in struct.massepunkte:
+                # schauen ob der Knoten auf der Linie liegt
+                if abs(m.coords[1] - z_target) < tol and (x_start - tol <= m.coords[0] <= x_end + tol):
+                    nodes_on_line.append(m)
+
+            if nodes_on_line:
+                # Knoten von links nach rechts sortieren
+                nodes_on_line.sort(key=lambda n: n.coords[0])
+                for i, n in enumerate(nodes_on_line):
+                
+                    dx_left = (n.coords[0] - nodes_on_line[i-1].coords[0]) / 2.0 if i > 0 else n.coords[0] - x_start
+                    dx_right = (nodes_on_line[i+1].coords[0] - n.coords[0]) / 2.0 if i < len(nodes_on_line) - 1 else x_end - n.coords[0]
+                    
+                    L_node = max(0, dx_left) + max(0, dx_right)
+                    F_node = q * L_node
+                    
+                    n.force[0] += F_node * np.cos(w_rad)
+                    n.force[1] += F_node * np.sin(w_rad)
+            
+            # continue, damit die Kräfte nicht nochmal angelegt werden
+            continue 
+            
+
+        # Festlager Loslager und Kraft
         if struct.dim == 2:
             target = np.array([c['x'], c['z']])
         else:
-            # Reihenfolge im model.py ist [x, z, y]
-            target = np.array([c['x'], c['z'], c.get('y', 0.0)])
-
+            target = np.array([c['x'], c.get('y', 0.0), c['z']])
+        
         node = min(struct.massepunkte, key=lambda m: np.linalg.norm(m.coords - target))
         
-        if c['type'] == "Festlager":    # setzt Lager oder Kraft
+        if c['type'] == "Festlager":
             node.fixed[:] = True
-        elif c['type'] == "Loslager": 
-            node.fixed[1] = True 
+        elif c['type'] == "Loslager":
+            node.fixed[1] = True # Z-Richtung gesperrt
+            if struct.dim == 3:
+                node.fixed[2] = True # In 3D auch Y sperren
+                
         elif c['type'] == "Kraft":
-            w_grad = c.get('angle', 270.0)
-            w_rad = np.radians(w_grad)
+            w_rad = np.radians(c.get('angle', 270.0))
             F = c['val']
-            #mehrere Kräfte gleichzeitig möglich
+            
             node.force[0] += F * np.cos(w_rad) 
-            node.force[1] += -1.0 * F * np.sin(w_rad)
-
             if struct.dim == 2:
-                w_grad = c.get('angle', 270.0)
-                w_rad = np.radians(w_grad)
-                F = c['val']
-                # += statt = -> mehrere Kräfte am selben Knoten addieren sich
-                node.force[0] += F * np.cos(w_rad) 
-                node.force[1] += -1.0 * F * np.sin(w_rad)
+                node.force[1] += F * np.sin(w_rad) 
             else:
-                node.force[0] += c.get('fx', 0.0)
-                node.force[1] += c.get('fz', c['val'])
-                node.force[2] += c.get('fy', 0.0)
+                node.force[1] += F * np.sin(w_rad)
 
 def create_stl_from_2D_structure(structure, thickness=1.0, beam_width=1.0):
     # STL Datei generieren
@@ -237,7 +262,7 @@ def create_stl_from_true_3d_structure(structure, thickness=1.0):
             
             # Orthogonale Vektoren für die Querschnittsfläche
             arbitrary = np.array([0.0, 0.0, 1.0])
-            # Wenn die Feder fast parallel zur z-Achse liegen andere Richtung wählen, damit das Kreuzprodukt nicht null wird
+            # Wenn die Feder fast parallel zur z-Achse liegen andere Richtung wählen, damit das Kreuzprodukt nicht null wird                
             if np.abs(np.dot(d, arbitrary)) > 0.99:
                 arbitrary = np.array([0.0, 1.0, 0.0])
                 

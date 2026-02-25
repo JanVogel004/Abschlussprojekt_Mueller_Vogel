@@ -231,6 +231,22 @@ with tab2:
                     if s.dim == 2: constraint["angle"] = fw
                     st.session_state.constraints.append(constraint) 
                     st.rerun()
+                
+            
+            st.markdown("**Streckenlast (Horizontal)**")
+            with st.form("streckenlast_form"):
+                sl_x_start = st.number_input("Start X", 0.0, w, w/2, step=1.0)
+                sl_x_end = st.number_input("Ende X", 0.0, w, w, step=1.0)
+                sl_z = st.number_input("Höhe Z", 0.0, h, 0.0, step=1.0)
+                sl_q = st.number_input("Streckenlast q (N/m)", value=100.0, step=50.0)
+                
+                if st.form_submit_button("Streckenlast anwenden"): 
+                    st.session_state.constraints.append({
+                        "type": "Streckenlast", 
+                        "x_start": sl_x_start, "x_end": sl_x_end, "z": sl_z, 
+                        "val": sl_q, "angle": 270.0
+                    }) 
+                    st.rerun()
 
         st.divider()
         st.markdown("**Standard-Lastfälle (Vorlagen)**")
@@ -316,6 +332,10 @@ with tab2:
                 if c['type'] == "Kraft":
                     # Anzeige für KRAFT
                     info_text = f"**Kraft**: {c['val']} N ({c.get('angle', 270)}°) an Position ({c['x']}, {c['z']})"
+
+                elif "Streckenlast" in c['type']:
+                    info_text = f"**Streckenlast**: {c['val']} N/m von X={c['x_start']} bis X={c['x_end']} auf Höhe Z={c['z']}"
+
                 else:
                     # Anzeige für LAGER
                     symbol = "∆" if "Fest" in c['type'] else "○"
@@ -425,22 +445,22 @@ with tab3:
                     if c_struct.solve() is None: break  # Verschiebung berechnen
                     c_struct.calculate_strain_energy()  # Energie berechnen
                     
-                    # 1. Energie mitteln (links und rechts) für Symetrie
+                    # Energie mitteln (links und rechts) für Symetrie
                     if st.session_state.use_symmetry:
                         for idx_left, idx_right in partner_map.items():
                             avg_energy = (c_struct.massepunkte[idx_left].strain_energy + c_struct.massepunkte[idx_right].strain_energy) / 2
                             c_struct.massepunkte[idx_left].strain_energy = avg_energy
                             c_struct.massepunkte[idx_right].strain_energy = avg_energy
                     
-                    # 2. Schutz für Massepunkte mit Kraft oder Randbedingung: Sehr hohe Energie zuweisen, damit sie nicht gelöscht werden
+                    # Schutz für Massepunkte mit Kraft oder Randbedingung: Sehr hohe Energie zuweisen, damit sie nicht gelöscht werden
                     for m in c_struct.massepunkte:
                         if np.linalg.norm(m.force) > 0 or np.any(m.fixed):
                             m.strain_energy = 1e15
                     
-                    # 3. Löschen von Massepunkten mit geringster Energie je nach Schrittweite 1 bis 10% der Massepunkte
+                    # Löschen von Massepunkten mit geringster Energie je nach Schrittweite 1 bis 10% der Massepunkte
                     c_struct.remove_inefficient_nodes(max(target, curr_m - step))
 
-                    # 4. Konstrolle der Symetrie
+                    # Konstrolle der Symetrie
                     if st.session_state.use_symmetry:
                         for idx_left, idx_right in partner_map.items():
                             # Wenn einer der beiden inaktiv ist, muss der andere es auch sein
@@ -448,7 +468,7 @@ with tab3:
                                 c_struct.massepunkte[idx_left].active = False
                                 c_struct.massepunkte[idx_right].active = False
 
-                    # 5. Plotten der aktuellen Struktur mit Spannungen
+                    # Plotten der aktuellen Struktur mit Spannungen
                     curr_m = len([m for m in c_struct.massepunkte if m.active]) / len(c_struct.massepunkte)
                     
                     if s.dim == 2:
