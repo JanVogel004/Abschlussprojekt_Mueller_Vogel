@@ -25,8 +25,16 @@ if 'target_mass' not in st.session_state:
     st.session_state.target_mass = 0.60
 if 'step_size' not in st.session_state:
     st.session_state.step_size = 0.04
+if 'gif_bytes' not in st.session_state:
+    st.session_state.gif_bytes = None
 if 'optimized_struct' not in st.session_state:
     st.session_state.optimized_struct = None
+if 'nx' not in st.session_state:
+    st.session_state.nx = 1
+if 'nz' not in st.session_state:
+    st.session_state.nz = 1
+if 'ny' not in st.session_state:
+    st.session_state.ny = 1
 
 
 # User Interface--------------------------------------------------------------------
@@ -440,6 +448,7 @@ with tab3:
 
                 plot_spot = st.empty()
                 curr_m = 1.0
+                gif_frames = []
                 
                 while curr_m > target:  # Rechne bis Zielmasse erreicht ist
                     if c_struct.solve() is None: break  # Verschiebung berechnen
@@ -475,7 +484,11 @@ with tab3:
                         fig = plot_with_stresses(c_struct, "Optimierung", e_mod, w, h, vis, 
                                             draw_sym_line=st.session_state.use_symmetry, 
                                             current_mass_pct=curr_m*100)
-                        plot_spot.pyplot(fig); plt.close(fig)
+                        plot_spot.pyplot(fig)
+
+                        gif_frames.append(fig_to_pil_image(fig))
+                        
+                        plt.close(fig)
                         st.session_state.last_result_fig = fig
                     else:
                         fig = plot_3d_structure(c_struct, "Optimierung", e_mod, vis, 
@@ -486,54 +499,86 @@ with tab3:
                 st.session_state.last_result_fig = fig
                 st.session_state.optimized_struct = c_struct
 
-    # Ergebnis kann als PNG oder STL exportiert werden
-    # Auch struct in einer session_state speichern, damit nach neuladen noch alles da ist
-    if st.session_state.last_result_fig and st.session_state.optimized_struct:
-        c_struct = st.session_state.optimized_struct
-        if s.dim == 3:
-            # Manueller Export für Plotly
-            b_size = st.session_state.res * 0.7
-            btn_data = plotly_to_png_bytes(st.session_state.last_result_fig)
+                if s.dim == 2 and len(gif_frames) > 0:
+                    gif_buf = io.BytesIO()
+                    gif_frames[0].save(
+                        gif_buf, format='GIF',
+                        save_all=True, 
+                        append_images=gif_frames[1:],
+                        duration=200, # Dauer pro Frame in ms
+                        loop=0        # Unendlich wiederholen
+                    )
+                    st.session_state.gif_bytes = gif_buf.getvalue()
 
-                # Download-Button für 3D-Plot
-            st.download_button(
-                label="3D-Ansicht als PNG speichern",
-                data=btn_data,
-                file_name="3d_optimierung.png",
-                mime="image/png"
+        # 1. BILD DAUERHAFT ANZEIGEN (Das hat in deinem Code gefehlt!)
+        if st.session_state.last_result_fig and not start_clicked:
+            st.divider()
+            st.subheader("Letztes Optimierungsergebnis")
+            if s.dim == 2:
+                st.pyplot(st.session_state.last_result_fig)
+            else:
+                st.plotly_chart(st.session_state.last_result_fig, width="stretch")
+
+        # 2. Ergebnis kann als PNG, GIF oder STL exportiert werden
+        # Auch struct in einer session_state speichern, damit nach neuladen noch alles da ist
+        if st.session_state.last_result_fig and st.session_state.optimized_struct:
+            c_struct = st.session_state.optimized_struct
+
+            if s.dim == 3:
+                # Manueller Export für Plotly
+                b_size = st.session_state.res * 0.7
+                btn_data = plotly_to_png_bytes(st.session_state.last_result_fig)
+
+                    # Download-Button für 3D-Plot
+                st.download_button(
+                    label="3D-Ansicht als PNG speichern",
+                    data=btn_data,
+                    file_name="3d_optimierung.png",
+                    mime="image/png"
+                    )
+                
+                # STL Export des optimierten 3D Modells
+                stl_data = create_stl_from_true_3d_structure(c_struct, thickness=b_size)
+                st.download_button(
+                    label="3D-Modell exportieren (.stl)",
+                    data=stl_data,
+                    file_name=f"{st.session_state.name.replace(' ', '_')}_3D.stl",
+                    mime="model/stl",
+                    type="primary"
                 )
-            
-            # STL Export des optimierten 3D Modells
-            stl_data = create_stl_from_true_3d_structure(c_struct, thickness=b_size)
-            st.download_button(
-                label="3D-Modell exportieren (.stl)",
-                data=stl_data,
-                file_name=f"{st.session_state.name.replace(' ', '_')}_3D.stl",
-                mime="model/stl",
-                type="primary"
-            )
 
-            
-        else:
-            # 2D Plot als PNG exportieren
-            btn_data = fig_to_png_bytes(st.session_state.last_result_fig)
+                
+            else:
+                # 2D Plot als PNG exportieren
+                btn_data = fig_to_png_bytes(st.session_state.last_result_fig)
 
-            png_bytes = fig_to_png_bytes(st.session_state.last_result_fig)
+                png_bytes = fig_to_png_bytes(st.session_state.last_result_fig)
 
-            st.download_button(
-                label="Geometrie als PNG herunterladen",
-                data=png_bytes,
-                file_name="optimierte_geometrie.png",
-                mime="image/png"
-            )
-            # STL Export des optimierten 2D Modells
-            b_size = st.session_state.res * 0.7
-            stl_data = create_stl_from_2D_structure(c_struct, thickness=b_size, beam_width=b_size)
-    
-            st.download_button(
-                label="3D-Modell exportieren (.stl)",
-                data=stl_data,
-                file_name=f"{st.session_state.name.replace(' ', '_')}_2_5D.stl",
-                mime="model/stl",
-                type="primary"
-            )
+                st.download_button(
+                    label="Geometrie als PNG herunterladen",
+                    data=png_bytes,
+                    file_name="optimierte_geometrie.png",
+                    mime="image/png"
+                )
+
+                if st.session_state.gif_bytes:
+                    st.download_button(
+                        label="Animation als GIF speichern", 
+                        data=st.session_state.gif_bytes, 
+                        file_name=f"{st.session_state.name.replace(' ', '_')}_optimierung.gif" if st.session_state.name else "2d_optimierung.gif", 
+                        mime="image/gif"
+                    )
+
+
+                # STL Export des optimierten 2D Modells
+
+                b_size = st.session_state.res * 0.7
+                stl_data = create_stl_from_2D_structure(s, thickness=b_size, beam_width=b_size)
+                
+                st.download_button(
+                    label="3D-Modell exportieren (.stl)",
+                    data=stl_data,
+                    file_name=f"{st.session_state.name.replace(' ', '_')}_2_5D.stl",
+                    mime="model/stl",
+                    type="primary"
+                )
