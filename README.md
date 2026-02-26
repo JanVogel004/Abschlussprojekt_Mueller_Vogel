@@ -48,6 +48,21 @@ streamlit run User_Interface.py
 
 Die Anwendung öffnet sich automatisch im Standard Webbrowser.
 
+![User Interface](images/UI.png)
+
+
+### 5. Anwenderdokumentation (Bedienung)
+
+Die Bedienung der Anwendung ist prozessorientiert strukturiert und folgt einem sequenziellen Arbeitsablauf, der über die entsprechenden Reiter (Tabs) der grafischen Benutzeroberfläche gesteuert wird:
+
+1. **Definition der Geometrie (Tab „Geometrie“):** Initial erfolgt die Auswahl der Dimensionalität (2D- oder 3D-Raum). Anschließend werden die globalen Abmessungen (Breite, Höhe, Tiefe), die zugrundeliegenden Materialeigenschaften sowie die gewünschte Netzauflösung festgelegt. Durch die Bestätigung wird der Bauraum angegeben und das zugrundeliegende Gitter (Mesh) generiert.
+
+2. **Festlegung der Randbedingungen (Tab „Randbedingungen“):** In diesem Schritt wird das statische System definiert. Kinematische Randbedingungen (Fest- und Loslager) sowie eingeprägte Lasten (gerichtete Einzelkräfte) können an exakten Koordinaten im System appliziert werden. Alternativ steht eine Auswahl vordefinierter Standardlastfälle (wie z. B. der MBB-Balken oder eine 3D-Brückenstruktur) zur Verfügung, um Evaluierungsszenarien zeiteffizient zu laden.
+
+3. **Parametrisierung und Optimierung (Tab „Optimierung“):** Hier erfolgt die Konfiguration des Optimierungsalgorithmus. Die steuernden Parameter umfassen die anvisierte Zielmasse (relativ zum Ausgangsvolumen), den Faktor der Verformungsdarstellung, sowie die Schrittweite des Materialabtrags pro Iterationsschritt. Durch das Auslösen des Startbefehls wird der FEM-Solver initiiert und der iterative Berechnungsprozess zur Topologieoptimierung ausgeführt.
+
+4. **Ergebnisanalyse und Export:** Nach erfolgreichem Abschluss der Berechnung stellt die Anwendung verschiedene Exportmöglichkeiten zur Verfügung. Die Topologie kann zur weiteren Dokumentation als Grafik (.png), als Animation des Materialabbaus (.gif) oder als Volumenmodell (.stl) für den 3D-Druck oder zur weiteren bearbeitung exportiert werden.
+
 ---
 
 ##  Minimalanforderungen 
@@ -70,6 +85,12 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 * **Visualisierung**
   Darstellung von Geometrie, Randbedingungen und optimiertem Ergebnis
 
+  ![2D Ansicht](images/2D_MBB-Balken.png)
+
+* **Modell Speicher (JSON)**
+
+  Die Struktur inkl. Randbedingungen kann jederzeit als JSON-Datei (`storage.json`) gespeichert und geladen werden, um die Optimierung später fortzusetzen.
+
 ---
 
 ## Erweiterungen 
@@ -78,6 +99,8 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 
 * Gittergenerierung als 2D-Fläche oder echtes 3D-Volumen
 * Vollständig erweiterter Solver für Raumdiagonalen und 3D Transformationen
+
+![3D Ansciht](images/3D_Ansicht.png)
 
 ### 2. Schnellerer Solver (SciPy Sparse)
 
@@ -105,10 +128,12 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 * Speicherung des gesamten Optimierungsverlaufs
 * Export als GIF zur Visualisierung des Materialabbaus
 
-### 7. Modell Speicher (JSON)
+![Topologieoptimierung MBB-Balken](images/GIF_MBB-Balken.gif)
 
-* Persistente Speicherung kompletter Lastfälle
-* Laden & Speichern über `storage.json`
+### 7. Symmetrie-Modus
+
+* Implementierung eines zuschaltbaren Symmetrie-Modus.
+* Der Materialabtrag wird über die Mittelachse gespiegelt, um symmetrische Bauteile zu erzeugen.
 
 ### 8. Klassische Vorlagen (Templates)
 
@@ -118,6 +143,19 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
   * Kragarm
   * 3D-Brücke
   * Zentraler Druckstab
+
+### 9. Heatmap-Visualisierung der Spannungen
+
+* Über die bloße Verformungsdarstellung hinaus werden die auftretenden Spannungen in den Elementen während und nach der Optimierung farblich als Heatmap visualisiert.
+
+### 10. Reale Materialparameter
+
+* Anstelle der vereinfachten Einheits-Steifigkeiten aus der Aufgabenstellung k = 1 N/m erlaubt die Anwendung die Definition realer Werkstoffe.
+* Integrierte Datenbank für Standardmaterialien (z. B. Baustahl S235, Aluminium, Holz) mit automatischer Umrechnung des materialspezifischen E-Moduls in die Elementsteifigkeitsmatrix.
+
+### 11. Interaktives Lastfall-Management
+
+* Alle gesetzten Randbedingungen und Lasten werden im Session-State als übersichtliche Liste mit ihren exakten Koordinaten und Werten angezeigt und können einzeln oder gemeinsam gelöscht werden.
 
 ---
 
