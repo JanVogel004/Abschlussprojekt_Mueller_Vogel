@@ -12,9 +12,9 @@
 
 ## Projektübersicht
 
-Dieses Projekt ist eine interaktive **Web-Anwendung auf Basis von Streamlit** zur **Topologieoptimierung von 2D- und 3D-Strukturen** mithilfe der **Finite-Elemente-Methode**.
+Dieses Projekt ist eine **Web-Anwendung von Streamlit** zur **Topologieoptimierung von 2D- und 3D-Strukturen** mithilfe der **Finite-Elemente-Methode**.
 
-Ziel ist es, innerhalb eines vordefinierten Bauraums optimale Lastpfade zu berechnen und ineffizientes Material iterativ zu entfernen. Das Ergebnis ist eine **gewichtsoptimierte Struktur**, die sich direkt **visualisieren** und **für den 3D-Druck exportieren** lässt.
+Ziel ist es, innerhalb eines vordefinierten Bauraums optimale Lastpfade zu berechnen und ineffizientes Material iterativ zu entfernen. Das Ergebnis ist eine **gewichtsoptimierte Struktur**, die sich direkt **visualisieren** und **für den 3D Druck exportieren** lässt.
 
 ---
 
@@ -51,17 +51,17 @@ Die Anwendung öffnet sich automatisch im Standard Webbrowser.
 ![User Interface](images/UI.png)
 
 
-### 5. Anwenderdokumentation (Bedienung)
+### 5. Bedienung der UI
 
-Die Bedienung der Anwendung ist prozessorientiert strukturiert und folgt einem sequenziellen Arbeitsablauf, der über die entsprechenden Reiter (Tabs) der grafischen Benutzeroberfläche gesteuert wird:
+Die Bedienung der Webseite ist prozessorientiert strukturiert und folgt dem Arbeitsablauf:
 
-1. **Definition der Geometrie (Tab „Geometrie“):** Initial erfolgt die Auswahl der Dimensionalität (2D- oder 3D-Raum). Anschließend werden die globalen Abmessungen (Breite, Höhe, Tiefe), die zugrundeliegenden Materialeigenschaften sowie die gewünschte Netzauflösung festgelegt. Durch die Bestätigung wird der Bauraum angegeben und das zugrundeliegende Gitter (Mesh) generiert.
+1. **Definition der Geometrie (Tab „Geometrie“):** Initial erfolgt die Auswahl der Dimensionalität (2D oder 3D). Anschließend werden die globalen Abmessungen (Breite, Höhe, Tiefe), die zugrundeliegenden Materialeigenschaften (E-Modul) sowie die gewünschte Netzauflösung festgelegt. Durch die Bestätigung wird der Bauraum angegeben und das Gitter generiert.
 
-2. **Festlegung der Randbedingungen (Tab „Randbedingungen“):** In diesem Schritt wird das statische System definiert. Kinematische Randbedingungen (Fest- und Loslager) sowie eingeprägte Lasten (gerichtete Einzelkräfte) können an exakten Koordinaten im System appliziert werden. Alternativ steht eine Auswahl vordefinierter Standardlastfälle (wie z. B. der MBB-Balken oder eine 3D-Brückenstruktur) zur Verfügung, um Evaluierungsszenarien zeiteffizient zu laden.
+2. **Festlegung der Randbedingungen (Tab „Randbedingungen“):** In diesem Schritt wird das statische System definiert. Kinematische Randbedingungen (Fest- und Loslager) sowie eingeprägte Lasten können mittels Koordinaten im System platziert werden. Alternativ steht eine Auswahl vordefinierter Standardlastfälle (wie z.B. der MBB-Balken oder eine 3D-Brückenstruktur) zur Verfügung, um Evaluierungsszenarien zeiteffizient zu laden.
 
-3. **Parametrisierung und Optimierung (Tab „Optimierung“):** Hier erfolgt die Konfiguration des Optimierungsalgorithmus. Die steuernden Parameter umfassen die anvisierte Zielmasse (relativ zum Ausgangsvolumen), den Faktor der Verformungsdarstellung, sowie die Schrittweite des Materialabtrags pro Iterationsschritt. Durch das Auslösen des Startbefehls wird der FEM-Solver initiiert und der iterative Berechnungsprozess zur Topologieoptimierung ausgeführt.
+3. **Parametrisierung und Optimierung (Tab „Optimierung“):** Hier erfolgt die Konfiguration des Optimierungsalgorithmus. Die steuernden Parameter umfassen die anvisierte Zielmasse (relativ zum Ausgangsvolumen), den Faktor der Verformungsdarstellung, sowie die Schrittweite des Materialabtrags pro Iterationsschritt. Durch das Auslösen des Startbefehls wird der FEM-Solver initiiert und der iterative Berechnungsprozess zur Topologieoptimierung ausgeführt. Der Fortschritt kann live beobachtet werden.
 
-4. **Ergebnisanalyse und Export:** Nach erfolgreichem Abschluss der Berechnung stellt die Anwendung verschiedene Exportmöglichkeiten zur Verfügung. Die Topologie kann zur weiteren Dokumentation als Grafik (.png), als Animation des Materialabbaus (.gif) oder als Volumenmodell (.stl) für den 3D-Druck oder zur weiteren bearbeitung exportiert werden.
+4. **Ergebnisanalyse und Export:** Nach erfolgreichem Abschluss der Berechnung stellt die Anwendung verschiedene Exportmöglichkeiten zur Verfügung. Die Topologie kann zur weiteren Dokumentation als Grafik (.png), als Animation (.gif) oder als Volumenmodell (.stl) für den 3D-Druck oder zur weiteren bearbeitung exportiert werden.
 
 ---
 
@@ -76,11 +76,11 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
   Festlager, Loslager und gerichtete Punktlasten
 
 * **FEM-Solver**
-  Aufbau der globalen Steifigkeitsmatrix und Lösung von
-  ( K * U = F )
+  Aufbau der globalen Steifigkeitsmatrix und Lösung des linearen Gleichungssystems:
+  $$K \cdot \vec{u} = \vec{F}$$
 
 * **Optimierungsschleife**
-  Berechnung der Verformungsenergie und iteratives Entfernen ineffizienter Elemente bis zur Zielmasse
+  Berechnung der Verformungsenergie und iteratives Entfernen ineffizienter Knoten bis zur Zielmasse
 
 * **Visualisierung**
   Darstellung von Geometrie, Randbedingungen und optimiertem Ergebnis
@@ -89,7 +89,7 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 
 * **Modell Speicher (JSON)**
 
-  Die Struktur inkl. Randbedingungen kann jederzeit als JSON-Datei (`storage.json`) gespeichert und geladen werden, um die Optimierung später fortzusetzen.
+  Die Struktur inkl. Randbedingungen kann jederzeit als JSON-Datei (`storage.json`) gespeichert und geladen werden.
 
 ---
 
@@ -106,7 +106,7 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 
 * Verwendung von `scipy.sparse.csr_matrix`
 * Lösung über `spsolve`
-* Massive Reduktion von Speicherbedarf und Rechenzeit
+* Reduktion von Speicherbedarf und Rechenzeit
 
 ### 3. STL-Export
 
@@ -135,7 +135,7 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 * Implementierung eines zuschaltbaren Symmetrie-Modus.
 * Der Materialabtrag wird über die Mittelachse gespiegelt, um symmetrische Bauteile zu erzeugen.
 
-### 8. Klassische Vorlagen (Templates)
+### 8. Klassische Vorlagen
 
 * Vordefinierte Szenarien:
 
@@ -146,16 +146,16 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 
 ### 9. Heatmap-Visualisierung der Spannungen
 
-* Über die bloße Verformungsdarstellung hinaus werden die auftretenden Spannungen in den Elementen während und nach der Optimierung farblich als Heatmap visualisiert.
+* Über die Verformungsdarstellung hinaus werden die auftretenden Spannungen in den Elementen während und nach der Optimierung farblich als Heatmap visualisiert.
 
 ### 10. Reale Materialparameter
 
-* Anstelle der vereinfachten Einheits-Steifigkeiten aus der Aufgabenstellung k = 1 N/m erlaubt die Anwendung die Definition realer Werkstoffe.
+* Anstelle der vereinfachten Einheitssteifigkeiten aus der Aufgabenstellung k = 1 N/m erlaubt die Anwendung die Definition realer Werkstoffe.
 * Integrierte Datenbank für Standardmaterialien (z. B. Baustahl S235, Aluminium, Holz) mit automatischer Umrechnung des materialspezifischen E-Moduls in die Elementsteifigkeitsmatrix.
 
 ### 11. Interaktives Lastfall-Management
 
-* Alle gesetzten Randbedingungen und Lasten werden im Session-State als übersichtliche Liste mit ihren exakten Koordinaten und Werten angezeigt und können einzeln oder gemeinsam gelöscht werden.
+* Alle gesetzten Randbedingungen und Lasten werden als übersichtliche Liste mit ihren exakten Koordinaten und Werten angezeigt und können einzeln oder gemeinsam gelöscht werden.
 
 ---
 
@@ -165,7 +165,7 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 ├── User_Interface.py      # Streamlit-Webinterface
 ├── model.py               # FEM-Datenstrukturen 
 ├── solver.py              # Sparse FEM-Solver (SciPy)
-├── UI_utils.py            # Visualisierung, Lasten, STL/GIF Export
+├── UI_utils.py            # Visualisierung, Lasten, STL/GIF Export, Hilfsfunktionen
 ├── model_storage.py       # JSON Speicherlogik
 ├── storage.json           # Gespeicherte Lastfälle
 ├── requirements.txt       # Python Abhängigkeiten
@@ -184,6 +184,6 @@ Zusätzlich wurden weitere GitHub Projekte analysiert, um unterschiedliche Lösu
 
 Für den **STL-Export** wurde konzeptionelle Inspiration aus folgendem Repository entnommen:  
 https://github.com/thearn/stl_tools  
-Die erzeugten STL Dateien werden analog dazu ausschließlich im **offiziellen ASCII-STL-Format** generiert.
+Die erzeugten STL Dateien werden analog dazu ausschließlich im **ASCII-STL-Format** generiert.
 
 Zur Fehlersuche und zum Debugging komplexer Logik z. B. bei FEM Assemblierung, 3D Transformationen und Exportfunktionen wurden **Large Language Models** eingesetzt.
