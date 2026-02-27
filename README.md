@@ -48,7 +48,7 @@ streamlit run User_Interface.py
 
 Die Anwendung öffnet sich automatisch im Standard Webbrowser.
 
-![User Interface](images/UI.png)
+![User Interface](Images/UI.png)
 
 
 ### 5. Bedienung der UI
@@ -85,7 +85,7 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 * **Visualisierung**
   Darstellung von Geometrie, Randbedingungen und optimiertem Ergebnis
 
-  ![2D Ansicht](images/2D_MBB-Balken.png)
+  ![2D Ansicht](Images/2D_MBB-Balken.png)
 
 * **Modell Speicher (JSON)**
 
@@ -100,7 +100,7 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 * Gittergenerierung als 2D-Fläche oder echtes 3D-Volumen
 * Vollständig erweiterter Solver für Raumdiagonalen und 3D Transformationen
 
-![3D Ansciht](images/3D_Ansicht.png)
+![3D Ansciht](Images/3D_Ansicht.png)
 
 ### 2. Schnellerer Solver (SciPy Sparse)
 
@@ -128,7 +128,7 @@ Die Kernanforderungen der Aufgabenstellung wurden vollständig **objektorientier
 * Speicherung des gesamten Optimierungsverlaufs
 * Export als GIF zur Visualisierung des Materialabbaus
 
-![Topologieoptimierung MBB-Balken](images/GIF_MBB-Balken.gif)
+![Topologieoptimierung MBB-Balken](Images/GIF_MBB-Balken.gif)
 
 ### 7. Symmetrie-Modus
 
