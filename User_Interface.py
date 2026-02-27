@@ -85,7 +85,7 @@ with st.sidebar:
 
         params = models[selected_index]
 
-        # 1. Parameter in session_state laden
+        # Parameter in session_state laden
         is_3d = "depth" in params and params["depth"] > 0
         
         if is_3d:
@@ -104,7 +104,7 @@ with st.sidebar:
         st.session_state.nz = params["nz"]
         st.session_state.ny = params.get("ny", 1)
 
-        # 2. Struktur erzeugen
+        # Struktur erzeugen
         if is_3d:
             s = Structure(dim=3)
             s.generate_box_mesh(params["nx"], params["ny"], params["nz"], 
@@ -351,7 +351,7 @@ with tab2:
 
                 col_text.markdown(info_text)
                 
-                # Löschen-Button
+                # Löschen Button
                 if col_del.button("Löschen", key=f"delete_{i}"):
                     st.session_state.constraints.pop(i) # Eintrag entfernen
                     st.rerun() # Seite neu laden
@@ -381,8 +381,16 @@ with tab3:
 
         with st.form("optimierung_form"):
             # Checkbox Symetrie-Modus
-            st.session_state.use_symmetry = st.checkbox("Symmetrie-Modus nutzen (Spiegelt Materialabtrag)", value=st.session_state.use_symmetry)
-
+            # Symetrie nur in 2D anwendbar
+            is_3d = (s.dim == 3)
+            if is_3d:
+                st.session_state.use_symmetry = False # In 3D immer deaktivieren
+                
+            st.session_state.use_symmetry = st.checkbox(
+                "Symmetrie-Modus nutzen (Spiegelt Materialabtrag)", 
+                value=st.session_state.use_symmetry, 
+                disabled=is_3d
+            )
             default_target = int(st.session_state.target_mass * 100)
             target = st.slider("Ziel-Masse (%)", 5, 100, default_target) / 100.0
             step = st.slider("Schrittweite", 0.01, 0.1, st.session_state.step_size)
@@ -510,7 +518,6 @@ with tab3:
                     )
                     st.session_state.gif_bytes = gif_buf.getvalue()
 
-        # 1. BILD DAUERHAFT ANZEIGEN (Das hat in deinem Code gefehlt!)
         if st.session_state.last_result_fig and not start_clicked:
             st.divider()
             st.subheader("Letztes Optimierungsergebnis")
@@ -519,7 +526,7 @@ with tab3:
             else:
                 st.plotly_chart(st.session_state.last_result_fig, width="stretch")
 
-        # 2. Ergebnis kann als PNG, GIF oder STL exportiert werden
+        # PNG, GIF oder STL exportiert werden
         # Auch struct in einer session_state speichern, damit nach neuladen noch alles da ist
         if st.session_state.last_result_fig and st.session_state.optimized_struct:
             c_struct = st.session_state.optimized_struct
