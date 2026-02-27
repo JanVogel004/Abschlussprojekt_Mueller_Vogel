@@ -186,4 +186,4 @@ Für den **STL-Export** wurde konzeptionelle Inspiration aus folgendem Repositor
 https://github.com/thearn/stl_tools  
 Die erzeugten STL Dateien werden analog dazu ausschließlich im **ASCII-STL-Format** generiert.
 
-Zur Fehlersuche und zum Debugging komplexer Logik z. B. bei FEM Assemblierung, 3D Transformationen und Exportfunktionen wurden **Large Language Models** eingesetzt.
+LLM´s wurden als Hilfsmittel für den Projektaufbau verwendet. 

@@ -137,7 +137,7 @@ def apply_constraints(struct):
             z_target = c['z']
             w_rad = np.radians(c.get('angle', 270.0))
             tol = 1e-3
-            
+           
             nodes_on_line = []
             for m in struct.massepunkte:
                 # schauen ob der Knoten auf der Linie liegt
@@ -148,44 +148,49 @@ def apply_constraints(struct):
                 # Knoten von links nach rechts sortieren
                 nodes_on_line.sort(key=lambda n: n.coords[0])
                 for i, n in enumerate(nodes_on_line):
-                
                     dx_left = (n.coords[0] - nodes_on_line[i-1].coords[0]) / 2.0 if i > 0 else n.coords[0] - x_start
                     dx_right = (nodes_on_line[i+1].coords[0] - n.coords[0]) / 2.0 if i < len(nodes_on_line) - 1 else x_end - n.coords[0]
-                    
+                   
                     L_node = max(0, dx_left) + max(0, dx_right)
                     F_node = q * L_node
-                    
+                   
                     n.force[0] += F_node * np.cos(w_rad)
-                    n.force[1] += F_node * np.sin(w_rad)
-            
+                    n.force[1] += -1.0 * F_node * np.sin(w_rad)
+           
             # continue, damit die Kräfte nicht nochmal angelegt werden
-            continue 
-            
+            continue
+           
 
         # Festlager Loslager und Kraft
         if struct.dim == 2:
             target = np.array([c['x'], c['z']])
         else:
-            target = np.array([c['x'], c.get('y', 0.0), c['z']])
-        
+            # Z und Y jetzt wieder richtig
+            target = np.array([c['x'], c['z'], c.get('y', 0.0)])
+       
         node = min(struct.massepunkte, key=lambda m: np.linalg.norm(m.coords - target))
-        
+       
         if c['type'] == "Festlager":
             node.fixed[:] = True
+            
         elif c['type'] == "Loslager":
             node.fixed[1] = True # Z-Richtung gesperrt
-            if struct.dim == 3:
-                node.fixed[2] = True # In 3D auch Y sperren
-                
+               
         elif c['type'] == "Kraft":
-            w_rad = np.radians(c.get('angle', 270.0))
-            F = c['val']
             
-            node.force[0] += F * np.cos(w_rad) 
+            # Kraft anwenden
             if struct.dim == 2:
-                node.force[1] += F * np.sin(w_rad) 
+                w_grad = c.get('angle', 270.0)
+                w_rad = np.radians(w_grad)
+                F = c['val']
+               
+                node.force[0] += F * np.cos(w_rad)
+                node.force[1] += -1.0 * F * np.sin(w_rad)
             else:
-                node.force[1] += F * np.sin(w_rad)
+                # Z und Y jetzt wieder richtig
+                node.force[0] += c.get('fx', 0.0)
+                node.force[1] += c.get('fz', c['val'])
+                node.force[2] += c.get('fy', 0.0)
 
 def create_stl_from_2D_structure(structure, thickness=1.0, beam_width=1.0):
     # STL Datei generieren
